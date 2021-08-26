@@ -6,13 +6,18 @@
                 color: red;
             }
             svg {
-                background-color: rgb(41, 41, 36);
+                background-color: rgb(30, 30, 30);
             }
         </style>
         <script src="./dist/spaceinvaders.js"></script>
     </head>
-    <body>
-        <h1>Space Invaders</h1>
-        <svg id="canvas" width="600" height="600"/>
+    <body class="center">
+        <h1>space invaders</h1>
+        <h4>robert overs</h4>
+        <svg id="canvas" width="600" height="600">
+            <g id="ship" transform="translate(300, 560)">
+                <polygon class="ship" points="-10,10 10,10 0,-10" style="fill:aquamarine"></polygon>
+            </g>
+        </svg>
     </body>
 </html>

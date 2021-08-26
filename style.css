@@ -1,7 +1,21 @@
-BODY, H2, H3, H4, H5, H6, TH, TD {
-font-family: arial, helvetica, sans-serif;
-}
-H1 {
-    font-size: 38px;
+body {
     font-family: arial, helvetica, sans-serif;
+}
+
+h1 {
+    font-size: 24px;
+    font-family: menlo;
+    font-weight: 200;
+    color: white;
+}
+
+h4 {
+    font-family: menlo;
+    font-weight: 200;
+    color: white;
+}
+
+.center {
+    background-color: rgb(80, 80, 80);
+    padding-top: 20px;
 }
