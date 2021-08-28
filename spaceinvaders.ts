@@ -23,25 +23,21 @@ function spaceinvaders() {
         id: string,
         x: number,
         y: number,
-        vel: number
+        velX: number,
+        velY: number
     }>
-
-    interface IBullet extends GameObject {
-        width: number,
-        height: number
-    }
 
     interface IPlayer extends GameObject {
         status: number,
     }
 
-    type Bullet = Readonly<IBullet>
-
     type Player = Readonly<IPlayer>
+
+    type Bullet = Readonly<GameObject>
 
     type State = Readonly<{
         player: Player,
-        bullets: ReadonlyArray<Bullet>,
+        bullets: ReadonlyArray<GameObject>,
         objCount: number
     }>
 
@@ -50,7 +46,8 @@ function spaceinvaders() {
             id: 'ship',
             x: Constants.initialX, 
             y: Constants.initialY,
-            vel: 0,
+            velX: 0,
+            velY: 0,
             status: 0
         },
         bullets: [],
@@ -79,7 +76,13 @@ function spaceinvaders() {
         startMoveRight = keyObservable('keydown', 'ArrowRight', () => new MoveRight(true)),
         stopMoveRight = keyObservable('keyup', 'ArrowRight', () => new MoveRight(false)),
         spacePress = keyObservable('keydown', 'ArrowUp', () => new Shoot()),
-        mouseClick = fromEvent<MouseEvent>(document, 'mousedown').pipe(map(() => new Shoot())),
+        mouseClick = fromEvent<MouseEvent>(document, 'mousedown').pipe(
+            filter(({ clientX, clientY }) => 
+                clientX > canvasRect.left 
+                && clientX < canvasRect.right 
+                && clientY > canvasRect.top 
+                && clientY < canvasRect.bottom), 
+            map(() => new Shoot())),
         mouseMove = fromEvent<MouseEvent>(document, 'mousemove').pipe(
             filter(({ clientX, clientY }) => 
                 clientX > canvasRect.left 
@@ -90,22 +93,29 @@ function spaceinvaders() {
         
     const movePlayer = (p: Player) => <Player>{
         ...p,
-        x: p.x + p.vel
+        x: p.x + p.velX,
+    };
+
+    const moveBullet = (b: Bullet) => <GameObject>{
+        ...b,
+        y: b.y + b.velY
     };
 
     const newBullet = (s: State) => 
-        <Bullet>{
+        <GameObject>{
+            id: `bullet${s.objCount}`,
             x: s.player.x,
             y: s.player.y,
-            id: `bullet${s.objCount}`,
-            width: 4,
-            height: 10
+            velX: 0,
+            velY: -5
         };
 
     const tick = (s: State, elapsed: number) => {
         return <State>{
             ...s, 
-            player: movePlayer(s.player)}
+            player: movePlayer(s.player),
+            bullets: s.bullets.map(moveBullet)
+        }
     };
 
     const reduceState = (s: State, e: MouseMove | MoveLeft | MoveRight | Shoot | Tick) =>
@@ -113,10 +123,10 @@ function spaceinvaders() {
             player: {...s.player, x: e.mousePos.x - 10},
         } :
         e instanceof MoveLeft ? <State>{...s,
-            player: {...s.player, vel: e.on ? -5 : 0},
+            player: {...s.player, velX: e.on ? -5 : 0},
         } :
         e instanceof MoveRight ? <State>{...s,
-            player: {...s.player, vel: e.on ? 5 : 0}, 
+            player: {...s.player, velX: e.on ? 5 : 0}, 
         } : 
         e instanceof Shoot ? <State>{...s,
             bullets: s.bullets.concat(newBullet(s)),
@@ -143,8 +153,8 @@ function spaceinvaders() {
             const createBulletView = () => {
                 const v = document.createElementNS(canvas.namespaceURI, 'rect')!;
                 v.setAttribute('id', b.id);
-                v.setAttribute('width', String(b.width));
-                v.setAttribute('height', String(b.height));
+                v.setAttribute('width', String(3));
+                v.setAttribute('height', String(6));
                 v.setAttribute('fill', 'white');
                 v.classList.add('bullet');
                 canvas.appendChild(v);
