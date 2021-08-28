@@ -6,6 +6,8 @@ function spaceinvaders() {
     const Constants = {
         gameWidth: 600,
         gameHeight: 600,
+        initialX: 300,
+        initialY: 560
     } as const;
 
     class Tick { constructor(public readonly elapsed: number)  { } }
@@ -14,23 +16,47 @@ function spaceinvaders() {
     class MouseMove { constructor(public readonly mousePos: {x: number, y: number}) { } }
     class Shoot { constructor() { } }
 
-    type Event = 'keydown' | 'keyup' | 'mousemove';
+    type Event = 'keydown' | 'keyup' | 'mousemove' | 'mousedown';
     type Key = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | ' ';
 
-    type State = Readonly<{
+    type GameObject = Readonly<{
         x: number,
-        y: number
+        y: number,
         vel: number
     }>
 
-    const initialState: State = {
-        x: 300,
-        y: 560,
-        vel: 0
+    interface IBullet extends GameObject {
+        width: number,
+        height: number
     }
 
-    const canvas = document.getElementById('canvas')!;
-    const ship = document.getElementById('ship')!;
+    interface IPlayer extends GameObject {
+        status: number,
+    }
+
+    type Bullet = Readonly<IBullet>
+
+    type Player = Readonly<IPlayer>
+
+    type State = Readonly<{
+        player: Player
+        bullets: ReadonlyArray<Bullet>
+    }>
+
+    const initialState: State = {
+        player: { 
+            x: Constants.initialX, 
+            y: Constants.initialY,
+            vel: 0,
+            status: 0
+        },
+        bullets: [] 
+    };
+
+    const 
+        canvas = document.getElementById('canvas')!,
+        ship = document.getElementById('ship')!,
+        canvasRect = canvas.getBoundingClientRect();
 
     const gameClock = interval(10)
         .pipe(map(elapsed => new Tick(elapsed)));
@@ -49,29 +75,47 @@ function spaceinvaders() {
         startMoveRight = keyObservable('keydown', 'ArrowRight', () => new MoveRight(true)),
         stopMoveRight = keyObservable('keyup', 'ArrowRight', () => new MoveRight(false)),
         spacePress = keyObservable('keydown', ' ', () => new Shoot()),
-        mouseMove = fromEvent<MouseEvent>(document, 'mousemove').pipe(map(({ clientX, clientY }) => new MouseMove({ x: clientX, y: clientY }))),
-        mouseClick = fromEvent<MouseEvent>(document, 'mousedown').pipe(map(() => new Shoot()))
+        mouseClick = fromEvent<MouseEvent>(document, 'mousedown').pipe(map(() => new Shoot())),
+        mouseMove = fromEvent<MouseEvent>(document, 'mousemove').pipe(
+            filter(({ clientX, clientY }) => 
+                clientX > canvasRect.left 
+                && clientX < canvasRect.right 
+                && clientY > canvasRect.top 
+                && clientY < canvasRect.bottom),
+            map(({ clientX, clientY }) => new MouseMove({ x: clientX, y: clientY })))
+        
+    const movePlayer = (p: Player) => <Player>{
+        ...p,
+        x: p.x + p.vel
+    };
 
-    
-    const reduceState = (s: State, e: Tick | MoveLeft | MoveRight | MouseMove | Shoot) =>
-        e instanceof MouseMove ? {...s,
-            x: e.mousePos.x,
+    const tick = (s: State, elapsed: number) => {
+        return <State>{...s, 
+            player: movePlayer(s.player)}
+    };
+
+    const reduceState = (s: State, e: MouseMove | MoveLeft | MoveRight | Shoot | Tick) =>
+        e instanceof MouseMove ? <State>{...s,
+            player: {...s.player, x: e.mousePos.x - 10},
         } :
-        e instanceof MoveLeft ? {...s,
-            vel: e.on ? -5 : 0
+        e instanceof MoveLeft ? <State>{...s,
+            player: {...s.player, vel: e.on ? -5 : 0},
         } :
-        e instanceof MoveRight ? {...s,
-            vel: e.on ? 5 : 0
-        } : {...s,
-            x: s.x + s.vel
-        };
+        e instanceof MoveRight ? <State>{...s,
+            player: {...s.player, vel: e.on ? 5 : 0}, 
+        } : 
+        e instanceof Shoot ? <State>{...s,
+            bullets: s.bullets
+        } : 
+        tick(s, e.elapsed);
 
     const subscription =
         merge(
             gameClock,
-            mouseMove,
+            mouseMove, mouseClick,
             startMoveLeft, stopMoveLeft,
-            startMoveRight, stopMoveRight
+            startMoveRight, stopMoveRight,
+            spacePress
         )
         .pipe(
             scan(reduceState, initialState)
@@ -79,7 +123,7 @@ function spaceinvaders() {
         .subscribe(updateView);
 
     function updateView(s: State) {
-        ship.setAttribute('transform', `translate(${s.x},${s.y})`)
+        ship.setAttribute('transform', `translate(${s.player.x},${s.player.y})`)
     }
 }
 
