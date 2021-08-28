@@ -17,9 +17,10 @@ function spaceinvaders() {
     class Shoot { constructor() { } }
 
     type Event = 'keydown' | 'keyup' | 'mousemove' | 'mousedown';
-    type Key = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | ' ';
+    type Key = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp';
 
     type GameObject = Readonly<{
+        id: string,
         x: number,
         y: number,
         vel: number
@@ -39,18 +40,21 @@ function spaceinvaders() {
     type Player = Readonly<IPlayer>
 
     type State = Readonly<{
-        player: Player
-        bullets: ReadonlyArray<Bullet>
+        player: Player,
+        bullets: ReadonlyArray<Bullet>,
+        objCount: number
     }>
 
     const initialState: State = {
         player: { 
+            id: 'ship',
             x: Constants.initialX, 
             y: Constants.initialY,
             vel: 0,
             status: 0
         },
-        bullets: [] 
+        bullets: [],
+        objCount: 0
     };
 
     const 
@@ -74,7 +78,7 @@ function spaceinvaders() {
         stopMoveLeft = keyObservable('keyup', 'ArrowLeft', () => new MoveLeft(false)),
         startMoveRight = keyObservable('keydown', 'ArrowRight', () => new MoveRight(true)),
         stopMoveRight = keyObservable('keyup', 'ArrowRight', () => new MoveRight(false)),
-        spacePress = keyObservable('keydown', ' ', () => new Shoot()),
+        spacePress = keyObservable('keydown', 'ArrowUp', () => new Shoot()),
         mouseClick = fromEvent<MouseEvent>(document, 'mousedown').pipe(map(() => new Shoot())),
         mouseMove = fromEvent<MouseEvent>(document, 'mousemove').pipe(
             filter(({ clientX, clientY }) => 
@@ -89,8 +93,18 @@ function spaceinvaders() {
         x: p.x + p.vel
     };
 
+    const newBullet = (s: State) => 
+        <Bullet>{
+            x: s.player.x,
+            y: s.player.y,
+            id: `bullet${s.objCount}`,
+            width: 4,
+            height: 10
+        };
+
     const tick = (s: State, elapsed: number) => {
-        return <State>{...s, 
+        return <State>{
+            ...s, 
             player: movePlayer(s.player)}
     };
 
@@ -105,9 +119,10 @@ function spaceinvaders() {
             player: {...s.player, vel: e.on ? 5 : 0}, 
         } : 
         e instanceof Shoot ? <State>{...s,
-            bullets: s.bullets
-        } : 
-        tick(s, e.elapsed);
+            bullets: s.bullets.concat(newBullet(s)),
+            objCount: s.objCount + 1
+        }
+        : tick(s, e.elapsed);
 
     const subscription =
         merge(
@@ -123,7 +138,22 @@ function spaceinvaders() {
         .subscribe(updateView);
 
     function updateView(s: State) {
-        ship.setAttribute('transform', `translate(${s.player.x},${s.player.y})`)
+        ship.setAttribute('transform', `translate(${s.player.x},${s.player.y})`);
+        s.bullets.forEach(b => {
+            const createBulletView = () => {
+                const v = document.createElementNS(canvas.namespaceURI, 'rect')!;
+                v.setAttribute('id', b.id);
+                v.setAttribute('width', String(b.width));
+                v.setAttribute('height', String(b.height));
+                v.setAttribute('fill', 'white');
+                v.classList.add('bullet');
+                canvas.appendChild(v);
+                return v;
+            }
+            const v = document.getElementById(b.id) || createBulletView();
+            v.setAttribute('x', String(b.x));
+            v.setAttribute('y', String(b.y));
+        })
     }
 }
 
