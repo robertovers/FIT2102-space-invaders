@@ -69,7 +69,13 @@ function spaceinvaders() {
                 filter(({ code }) => code === k),
                 filter(({ repeat }) => !repeat),
                 map(result));
-
+    
+    const onScreen = (x: number, y: number) => 
+        x > canvasRect.left 
+        && x < canvasRect.right 
+        && y > canvasRect.top 
+        && y < canvasRect.bottom
+    
     const
         startMoveLeft = keyObservable('keydown', 'ArrowLeft', () => new MoveLeft(true)),
         stopMoveLeft = keyObservable('keyup', 'ArrowLeft', () => new MoveLeft(false)),
@@ -77,18 +83,10 @@ function spaceinvaders() {
         stopMoveRight = keyObservable('keyup', 'ArrowRight', () => new MoveRight(false)),
         spacePress = keyObservable('keydown', 'ArrowUp', () => new Shoot()),
         mouseClick = fromEvent<MouseEvent>(document, 'mousedown').pipe(
-            filter(({ clientX, clientY }) => 
-                clientX > canvasRect.left 
-                && clientX < canvasRect.right 
-                && clientY > canvasRect.top 
-                && clientY < canvasRect.bottom), 
+            filter(({ clientX, clientY }) => onScreen(clientX, clientY)),
             map(() => new Shoot())),
         mouseMove = fromEvent<MouseEvent>(document, 'mousemove').pipe(
-            filter(({ clientX, clientY }) => 
-                clientX > canvasRect.left 
-                && clientX < canvasRect.right 
-                && clientY > canvasRect.top 
-                && clientY < canvasRect.bottom),
+            filter(({ clientX, clientY }) => onScreen(clientX, clientY)),
             map(({ clientX, clientY }) => new MouseMove({ x: clientX, y: clientY })))
         
     const movePlayer = (p: Player) => <Player>{
