@@ -34,12 +34,33 @@ function spaceinvaders() {
     type Player = Readonly<IPlayer>
 
     type Bullet = Readonly<GameObject>
+    
+    interface IEnemies extends GameObject {
+        enemies: ReadonlyArray<GameObject | null> 
+    }
+
+    type EnemyTracker = Readonly<IEnemies>
 
     type State = Readonly<{
         player: Player,
         bullets: ReadonlyArray<GameObject>,
+        enemyTracker: EnemyTracker,
         objCount: number
     }>
+    
+    const nullEnemies: ReadonlyArray<GameObject | null> = [
+        null, null, null, null,
+        null, null, null, null 
+    ]
+
+    const initialiseEnemies = (s: State) => s.enemyTracker.enemies.map(e => 
+        <GameObject>{
+            id: `enemy${s.objCount}`,
+            x: 0,
+            y: 0,
+            velX: 0,
+            velY: 0
+        });
 
     const initialState: State = {
         player: { 
@@ -51,6 +72,14 @@ function spaceinvaders() {
             status: 0
         },
         bullets: [],
+        enemyTracker: {
+            id: 'enemyTracker',
+            x: 0,
+            y: 0,
+            velX: 0,
+            velY: 0,
+            enemies: nullEnemies 
+        },
         objCount: 0
     };
 
@@ -118,7 +147,11 @@ function spaceinvaders() {
         return <State>{
             ...s, 
             player: movePlayer(s.player),
-            bullets: s.bullets.map(moveBullet).filter(b => coordsInCanvas(b.x, b.y + 20)).reduce((l: ReadonlyArray<GameObject>, b) => l.concat(b), [])
+            bullets: s.bullets.map(moveBullet).filter(b => coordsInCanvas(b.x, b.y + 20)).reduce((l: ReadonlyArray<GameObject>, b) => l.concat(b), []),
+            enemyTracker: {
+                ...s.enemyTracker,
+                enemies: nullEnemies ? initialiseEnemies(s) : s.enemyTracker.enemies
+            }
         }
     };
 
@@ -160,16 +193,31 @@ function spaceinvaders() {
                 v.setAttribute('width', String(2));
                 v.setAttribute('height', String(8));
                 v.setAttribute('fill', 'white');
-                v.classList.add('bullet');
+                //v.classList.add('bullet');
                 canvas.appendChild(v);
                 return v;
             }
             const v = document.getElementById(b.id) || createBulletView();
             v.setAttribute('x', String(b.x));
             v.setAttribute('y', String(b.y));
-        })
+            });
+        s.enemyTracker.enemies.filter(e => e !== null).forEach(e => {
+            const createEnemyView = () => {
+                const v = document.createElementNS(canvas.namespaceURI, 'rect')!;
+                v.setAttribute('id', e!.id);
+                v.setAttribute('width', String(20));
+                v.setAttribute('height', String(20));
+                v.setAttribute('fill', 'white');
+                //v.classList.add('enemy');
+                canvas.appendChild(v);
+                return v;
+            }
+            const v = document.getElementById(e!.id) || createEnemyView();
+            v.setAttribute('x', String(e!.x));
+            v.setAttribute('y', String(e!.y));
+            });
+        }
     }
-}
 
 if (typeof window != 'undefined')
     window.onload = () => {
