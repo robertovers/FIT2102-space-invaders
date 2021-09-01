@@ -70,11 +70,11 @@ function spaceinvaders() {
                 filter(({ repeat }) => !repeat),
                 map(result));
     
-    const onScreen = (x: number, y: number) => 
-        x > canvasRect.left 
-        && x < canvasRect.right 
-        && y > canvasRect.top 
-        && y < canvasRect.bottom
+    const mouseOnCanvas = ({ clientX, clientY }: MouseEvent) => 
+        clientX > canvasRect.left &&
+        clientX < canvasRect.right &&
+        clientY > canvasRect.top &&
+        clientY < canvasRect.bottom;
     
     const
         startMoveLeft = keyObservable('keydown', 'ArrowLeft', () => new MoveLeft(true)),
@@ -83,11 +83,11 @@ function spaceinvaders() {
         stopMoveRight = keyObservable('keyup', 'ArrowRight', () => new MoveRight(false)),
         spacePress = keyObservable('keydown', 'ArrowUp', () => new Shoot()),
         mouseClick = fromEvent<MouseEvent>(document, 'mousedown').pipe(
-            filter(({ clientX, clientY }) => onScreen(clientX, clientY)),
+            filter(mouseOnCanvas),
             map(() => new Shoot())),
         mouseMove = fromEvent<MouseEvent>(document, 'mousemove').pipe(
-            filter(({ clientX, clientY }) => onScreen(clientX, clientY)),
-            map(({ clientX, clientY }) => new MouseMove({ x: clientX, y: clientY })))
+            filter(mouseOnCanvas),
+            map(({ clientX, clientY }) => new MouseMove({ x: clientX, y: clientY })));
         
     const movePlayer = (p: Player) => <Player>{
         ...p,
@@ -108,11 +108,17 @@ function spaceinvaders() {
             velY: -5
         };
 
+    const coordsInCanvas = (x: number, y: number) =>
+        x <= Constants.gameWidth &&
+        y <= Constants.gameHeight &&
+        x >= 0 &&
+        y >= 0;
+
     const tick = (s: State, elapsed: number) => {
         return <State>{
             ...s, 
             player: movePlayer(s.player),
-            bullets: s.bullets.map(moveBullet)
+            bullets: s.bullets.map(moveBullet).filter(b => coordsInCanvas(b.x, b.y + 20)).reduce((l: ReadonlyArray<GameObject>, b) => l.concat(b), [])
         }
     };
 
@@ -151,8 +157,8 @@ function spaceinvaders() {
             const createBulletView = () => {
                 const v = document.createElementNS(canvas.namespaceURI, 'rect')!;
                 v.setAttribute('id', b.id);
-                v.setAttribute('width', String(3));
-                v.setAttribute('height', String(6));
+                v.setAttribute('width', String(2));
+                v.setAttribute('height', String(8));
                 v.setAttribute('fill', 'white');
                 v.classList.add('bullet');
                 canvas.appendChild(v);
