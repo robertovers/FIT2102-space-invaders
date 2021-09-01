@@ -27,20 +27,21 @@ function spaceinvaders() {
         velY: number
     }>
 
-    interface IPlayer extends GameObject {
-        status: number,
+    type Enemy = {
+        id: string,
+        x: number,
+        y: number,
+        col: number,
+        row: number
     }
 
-    interface IEnemy extends GameObject {
-        row: number,
-        col: number
+    interface IPlayer extends GameObject {
+        status: number,
     }
 
     type Player = Readonly<IPlayer>
 
     type Bullet = Readonly<GameObject>
-
-    type Enemy = Readonly<IEnemy>
     
     interface IEnemies extends GameObject {
         enemies: ReadonlyArray<Enemy | null> 
@@ -65,15 +66,13 @@ function spaceinvaders() {
         enemyRows = [1,2,3,4,5],
         enemyRowCols = enemyRows.flatMap(a => enemyCols.map(b => [a, b]));
 
-    const initEnemies = (s: State) => enemyRowCols.map(pair => 
-        <GameObject>{
-            id: `enemy${pair}`,
-            x: 0,
-            y: 0,
-            velX: 0,
-            velY: 0,
-            row: pair[0],
-            col: pair[1] 
+    const initEnemies = () => enemyRowCols.map(coords => 
+        <Enemy>{
+            id: `enemy${coords[0]}${coords[1]}`,
+            x: coords[1] * 40,
+            y: coords[0] * 40,
+            col: coords[1],
+            row: coords[0] 
         });
 
     const initialState: State = {
@@ -88,11 +87,11 @@ function spaceinvaders() {
         bullets: [],
         enemyTracker: {
             id: 'enemyTracker',
-            x: 0,
-            y: 0,
-            velX: 0,
+            x: 10,
+            y: 20,
+            velX: 0.5,
             velY: 0,
-            enemies: nullEnemies 
+            enemies: initEnemies()
         },
         objCount: 0
     };
@@ -142,11 +141,19 @@ function spaceinvaders() {
         y: b.y + b.velY
     };
 
-    const moveEnemy = (e: Enemy | null) => e ? <Enemy>{
+    const moveEnemy = (et: EnemyTracker) => (e: Enemy | null) => e ? <Enemy>{
         ...e,
-        x: e.col * 40 + e.velX,
-        y: e.row * 40 + e.velY
+        x: et.x + e.col * 40,
+        y: et.y + e.row * 40
     } : null;
+
+    const moveEnemies = (et: EnemyTracker) => <EnemyTracker>{
+        ...et,
+        x: et.x > 90 ? 89 : et.x < 10 ? 11 : et.x + et.velX,
+        y: et.y + et.velY,
+        velX: et.x > 90 || et.x < 10 ? (-1) * et.velX : et.velX, 
+        enemies: et.enemies.map(moveEnemy(et))
+    }
 
     const newBullet = (s: State) => 
         <GameObject>{
@@ -168,10 +175,7 @@ function spaceinvaders() {
             ...s, 
             player: movePlayer(s.player),
             bullets: s.bullets.map(moveBullet).filter(b => coordsInCanvas(b.x, b.y + 20)).reduce((l: ReadonlyArray<GameObject>, b) => l.concat(b), []),
-            enemyTracker: {
-                ...s.enemyTracker,
-                enemies: s.enemyTracker.enemies === nullEnemies ? initEnemies(s) : s.enemyTracker.enemies.map(moveEnemy)
-            }
+            enemyTracker: moveEnemies(s.enemyTracker)
         }
     };
 
