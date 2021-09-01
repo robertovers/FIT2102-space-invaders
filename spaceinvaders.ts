@@ -24,13 +24,10 @@ function spaceinvaders() {
         x: number,
         y: number,
         velX: number,
-        velY: number
+        velY: number,
     }>
 
-    type Enemy = {
-        id: string,
-        x: number,
-        y: number,
+    interface IEnemy extends GameObject {
         col: number,
         row: number
     }
@@ -42,9 +39,11 @@ function spaceinvaders() {
     type Player = Readonly<IPlayer>
 
     type Bullet = Readonly<GameObject>
+
+    type Enemy = Readonly<IEnemy>
     
     interface IEnemies extends GameObject {
-        enemies: ReadonlyArray<Enemy | null> 
+        enemies: ReadonlyArray<Enemy> 
     }
 
     type EnemyTracker = Readonly<IEnemies>
@@ -53,13 +52,9 @@ function spaceinvaders() {
         player: Player,
         bullets: ReadonlyArray<Bullet>,
         enemyTracker: EnemyTracker,
-        objCount: number
+        objCount: number,
+        exit: ReadonlyArray<GameObject>
     }>
-    
-    const nullEnemies: ReadonlyArray<Enemy | null> = [
-        null, null, null, null,
-        null, null, null, null 
-    ]
 
     const 
         enemyCols = [1,2,3,4,5,6,7,8,9,10,11],
@@ -93,7 +88,8 @@ function spaceinvaders() {
             velY: 0,
             enemies: initEnemies()
         },
-        objCount: 0
+        objCount: 0,
+        exit: []
     };
 
     const 
@@ -104,7 +100,7 @@ function spaceinvaders() {
     const gameClock = interval(10)
         .pipe(map(elapsed => new Tick(elapsed)));
 
-    // from Asteroids
+    // from Observable Asteroids
     const keyObservable = <T>(e: Event, k: Key, result: () => T) =>
         fromEvent<KeyboardEvent>(document, e)
             .pipe(
@@ -141,11 +137,11 @@ function spaceinvaders() {
         y: b.y + b.velY
     };
 
-    const moveEnemy = (et: EnemyTracker) => (e: Enemy | null) => e ? <Enemy>{
+    const moveEnemy = (et: EnemyTracker) => (e: Enemy) => <Enemy>{
         ...e,
         x: et.x + e.col * 40,
         y: et.y + e.row * 40
-    } : null;
+    };
 
     const moveEnemies = (et: EnemyTracker) => <EnemyTracker>{
         ...et,
@@ -164,19 +160,46 @@ function spaceinvaders() {
             velY: -5
         };
 
-    const coordsInCanvas = (x: number, y: number) =>
-        x <= Constants.gameWidth &&
-        y <= Constants.gameHeight &&
-        x >= 0 &&
-        y >= 0;
+    const bulletOnCanvas = (b: Bullet) =>
+        b.x <= Constants.gameWidth &&
+        b.y <= Constants.gameHeight &&
+        b.x >= 0 &&
+        b.y + 20 >= 0;
+    
+    const handleCollisions = (s: State) => {
+        const objectCollision = ([i, j]: [GameObject, GameObject]) => 
+                i.x > j.x &&
+                i.x < j.x + 20 &&
+                i.y > j.y &&
+                i.y < j.y + 20;
+        const
+            // from Observable Asteroids
+            allBulletsAndEnemies = s.bullets.flatMap(b => s.enemyTracker.enemies.map(e =><[GameObject, GameObject]>[b, e])),
+            collided = allBulletsAndEnemies.filter(objectCollision),
+            collidedBullets = collided.map(([bullet, _]) => bullet),
+            collidedEnemies = collided.map(([_, enemy]) => enemy),
+            cut = except((a: GameObject | Enemy)=>(b: GameObject | Enemy)=> a.id === b.id)
+        return <State>{...s,
+            bullets: cut(s.bullets)(collidedBullets),
+            exit: s.exit.concat(collidedBullets, collidedEnemies),
+            enemyTracker: {
+                ...s.enemyTracker,
+                enemies: cut(s.enemyTracker.enemies)(collidedEnemies)
+            }
+        }
+    }
 
     const tick = (s: State, elapsed: number) => {
-        return <State>{
+        const 
+            offCanvasBullets = s.bullets.filter(b => !bulletOnCanvas(b)),
+            onCanvasBullets = s.bullets.filter(bulletOnCanvas);
+        return handleCollisions({
             ...s, 
             player: movePlayer(s.player),
-            bullets: s.bullets.map(moveBullet).filter(b => coordsInCanvas(b.x, b.y + 20)).reduce((l: ReadonlyArray<GameObject>, b) => l.concat(b), []),
-            enemyTracker: moveEnemies(s.enemyTracker)
-        }
+            bullets: onCanvasBullets.map(moveBullet),
+            enemyTracker: moveEnemies(s.enemyTracker),
+            exit: offCanvasBullets
+        })
     };
 
     const reduceState = (s: State, e: MouseMove | MoveLeft | MoveRight | Shoot | Tick) =>
@@ -209,6 +232,7 @@ function spaceinvaders() {
         .subscribe(updateView);
 
     function updateView(s: State) {
+        // from Observable Asteroids
         ship.setAttribute('transform', `translate(${s.player.x},${s.player.y})`);
         s.bullets.forEach(b => {
             const createBulletView = () => {
@@ -224,8 +248,8 @@ function spaceinvaders() {
             const v = document.getElementById(b.id) || createBulletView();
             v.setAttribute('x', String(b.x));
             v.setAttribute('y', String(b.y));
-            });
-        s.enemyTracker.enemies.filter(e => e !== null).forEach(e => {
+        });
+        s.enemyTracker.enemies.forEach(e => {
             const createEnemyView = () => {
                 const v = document.createElementNS(canvas.namespaceURI, 'rect')!;
                 v.setAttribute('id', e!.id);
@@ -239,11 +263,35 @@ function spaceinvaders() {
             const v = document.getElementById(e!.id) || createEnemyView();
             v.setAttribute('x', String(e!.x));
             v.setAttribute('y', String(e!.y));
-            });
-        }
+        });
+        s.exit.map(o => document.getElementById(o.id))
+        .filter(o => o !== null && o !== undefined)
+        .forEach(v => {
+            try {
+                canvas.removeChild(v!)
+            } catch(e) {
+                console.log("Already removed: " + v!.id)
+            }
+        });
     }
+}
 
 if (typeof window != 'undefined')
     window.onload = () => {
         spaceinvaders();
     }
+
+
+// utility
+
+// from Observable Asteroids
+const 
+    not = <T>(f:(x:T)=>boolean)=> (x:T)=> !f(x),
+    elem = 
+        <T>(eq: (_:T)=>(_:T)=>boolean)=> 
+        (a:ReadonlyArray<T>)=> 
+            (e:T)=> a.findIndex(eq(e)) >= 0,
+    except = 
+        <T>(eq: (_:T)=>(_:T)=>boolean)=>
+        (a:ReadonlyArray<T>)=> 
+            (b:ReadonlyArray<T>)=> a.filter(not(elem(eq)(b)))
