@@ -158,8 +158,8 @@ function spaceinvaders() {
     const newBullet = (s: State) => 
         <GameObject>{
             id: `bullet${s.objCount}`,
-            x: s.player.x,
-            y: s.player.y,
+            x: s.player.x - 1,
+            y: s.player.y - 15,
             velX: 0,
             velY: -5
         };
@@ -231,7 +231,7 @@ function spaceinvaders() {
                 v.setAttribute('id', e!.id);
                 v.setAttribute('width', String(20));
                 v.setAttribute('height', String(20));
-                v.setAttribute('fill', 'white');
+                v.setAttribute('fill', 'lightgreen');
                 //v.classList.add('enemy');
                 canvas.appendChild(v);
                 return v;
