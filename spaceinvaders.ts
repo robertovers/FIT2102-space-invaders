@@ -14,7 +14,8 @@ function spaceinvaders() {
     class MoveLeft { constructor(public readonly on: boolean) { } }
     class MoveRight { constructor(public readonly on: boolean) { } }
     class MouseMove { constructor(public readonly mousePos: {x: number, y: number}) { } }
-    class Shoot { constructor() { } }
+    class PlayerShoot { constructor() { } }
+    class EnemyShoot { constructor(public readonly on: boolean) { } }
 
     type Event = 'keydown' | 'keyup' | 'mousemove' | 'mousedown';
     type Key = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp';
@@ -96,9 +97,7 @@ function spaceinvaders() {
         canvas = document.getElementById('canvas')!,
         ship = document.getElementById('ship')!,
         canvasRect = canvas.getBoundingClientRect();
-
-    const gameClock = interval(10)
-        .pipe(map(elapsed => new Tick(elapsed)));
+        
 
     // from Observable Asteroids
     const keyObservable = <T>(e: Event, k: Key, result: () => T) =>
@@ -113,19 +112,23 @@ function spaceinvaders() {
         clientX < canvasRect.right &&
         clientY > canvasRect.top &&
         clientY < canvasRect.bottom;
+
+    const nextFloat = () => new RNG(20).nextFloat();
     
     const
         startMoveLeft = keyObservable('keydown', 'ArrowLeft', () => new MoveLeft(true)),
         stopMoveLeft = keyObservable('keyup', 'ArrowLeft', () => new MoveLeft(false)),
         startMoveRight = keyObservable('keydown', 'ArrowRight', () => new MoveRight(true)),
         stopMoveRight = keyObservable('keyup', 'ArrowRight', () => new MoveRight(false)),
-        spacePress = keyObservable('keydown', 'ArrowUp', () => new Shoot()),
+        spacePress = keyObservable('keydown', 'ArrowUp', () => new PlayerShoot()),
         mouseClick = fromEvent<MouseEvent>(document, 'mousedown').pipe(
             filter(mouseOnCanvas),
-            map(() => new Shoot())),
+            map(() => new PlayerShoot())),
         mouseMove = fromEvent<MouseEvent>(document, 'mousemove').pipe(
             filter(mouseOnCanvas),
-            map(({ clientX, clientY }) => new MouseMove({ x: clientX, y: clientY })));
+            map(({ clientX, clientY }) => new MouseMove({ x: clientX, y: clientY }))),
+        gameClock = interval(10).pipe(map(elapsed => new Tick(elapsed))),
+        rngStream = interval(10).pipe(map(() => nextFloat() < 0.1 ? new EnemyShoot(true) : new EnemyShoot(false)));
         
     const movePlayer = (p: Player) => <Player>{
         ...p,
@@ -149,15 +152,24 @@ function spaceinvaders() {
         y: et.y + et.velY,
         velX: et.x > 90 || et.x < 10 ? (-1) * et.velX : et.velX, 
         enemies: et.enemies.map(moveEnemy(et))
-    }
+    };
 
-    const newBullet = (s: State) => 
+    const newPlayerBullet = (s: State) => 
         <GameObject>{
             id: `bullet${s.objCount}`,
             x: s.player.x - 1,
             y: s.player.y - 15,
             velX: 0,
             velY: -5
+        };
+
+    const newEnemyBullet = (s: State) =>
+        <GameObject>{
+            id: `bullet${s.objCount}`,
+            x: s.player.x + 10,
+            y: s.player.y + 30,
+            velX: 0,
+            velY: 5
         };
 
     const bulletOnCanvas = (b: Bullet) =>
@@ -178,7 +190,7 @@ function spaceinvaders() {
             collided = allBulletsAndEnemies.filter(objectCollision),
             collidedBullets = collided.map(([bullet, _]) => bullet),
             collidedEnemies = collided.map(([_, enemy]) => enemy),
-            cut = except((a: GameObject | Enemy)=>(b: GameObject | Enemy)=> a.id === b.id)
+            cut = except((a: GameObject | Enemy) => (b: GameObject | Enemy) => a.id === b.id);
         return <State>{...s,
             bullets: cut(s.bullets)(collidedBullets),
             exit: s.exit.concat(collidedBullets, collidedEnemies),
@@ -202,7 +214,7 @@ function spaceinvaders() {
         })
     };
 
-    const reduceState = (s: State, e: MouseMove | MoveLeft | MoveRight | Shoot | Tick) =>
+    const reduceState = (s: State, e: MouseMove | MoveLeft | MoveRight | PlayerShoot | Tick) =>
         e instanceof MouseMove ? <State>{...s,
             player: {...s.player, x: e.mousePos.x - 10},
         } :
@@ -212,8 +224,8 @@ function spaceinvaders() {
         e instanceof MoveRight ? <State>{...s,
             player: {...s.player, velX: e.on ? 5 : 0}, 
         } : 
-        e instanceof Shoot ? <State>{...s,
-            bullets: s.bullets.concat(newBullet(s)),
+        e instanceof PlayerShoot ? <State>{...s,
+            bullets: s.bullets.concat(newPlayerBullet(s)),
             objCount: s.objCount + 1
         }
         : tick(s, e.elapsed);
@@ -282,16 +294,38 @@ if (typeof window != 'undefined')
     }
 
 
-// utility
+// === utility ===
+
+// RNG class from Week 4 observableexamples.ts
+class RNG {
+
+    m = 0x80000000; // 2**31
+    a = 1103515245;
+    c = 12345;
+    state: number
+
+    constructor(seed: number) {
+        this.state = seed ? seed : Math.floor(Math.random() * (this.m - 1));
+    }
+
+    nextInt() {
+        this.state = (this.a * this.state + this.c) % this.m;
+        return this.state;
+    }
+
+    nextFloat() {
+        return this.nextInt() / (this.m - 1);
+    }
+}
 
 // from Observable Asteroids
-const 
-    not = <T>(f:(x:T)=>boolean)=> (x:T)=> !f(x),
-    elem = 
-        <T>(eq: (_:T)=>(_:T)=>boolean)=> 
-        (a:ReadonlyArray<T>)=> 
-            (e:T)=> a.findIndex(eq(e)) >= 0,
-    except = 
-        <T>(eq: (_:T)=>(_:T)=>boolean)=>
-        (a:ReadonlyArray<T>)=> 
-            (b:ReadonlyArray<T>)=> a.filter(not(elem(eq)(b)))
+const
+    not = <T>(f: (x: T) => boolean) => (x: T) => !f(x),
+    elem =
+        <T>(eq: (_: T) => (_: T) => boolean) =>
+            (a: ReadonlyArray<T>) =>
+                (e: T) => a.findIndex(eq(e)) >= 0,
+    except =
+        <T>(eq: (_: T) => (_: T) => boolean) =>
+            (a: ReadonlyArray<T>) =>
+                (b: ReadonlyArray<T>) => a.filter(not(elem(eq)(b)))
