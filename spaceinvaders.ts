@@ -1,4 +1,4 @@
-import { fromEvent, interval, merge, of } from 'rxjs';
+import { empty, fromEvent, interval, merge, of } from 'rxjs';
 import { map, filter, scan } from 'rxjs/operators';
 
 function spaceinvaders() {
@@ -158,6 +158,7 @@ function spaceinvaders() {
     const randEnemyThatShoots = (s: State) => {
         const enemiesThatShoot = s.enemyTracker.enemies.filter(e => e.canShoot === true);
         const randEnemy = rng.nextInt() % (enemiesThatShoot.length);
+        console.log(randEnemy, enemiesThatShoot[randEnemy]);
         return enemiesThatShoot.length > 0 ? enemiesThatShoot[randEnemy] : s.enemyTracker.enemies[0];
     }
 
@@ -170,13 +171,15 @@ function spaceinvaders() {
                 velX: 0,
                 velY: -5
             },
-        newEnemyBullet = (s: State) =>
-            <GameObject>{
-                id: `bullet${s.objCount}`,
-                x: randEnemyThatShoots(s).x + 10,
-                y: randEnemyThatShoots(s).y + 20,
-                velX: 0,
-                velY: 3
+        newEnemyBullet = (s: State) => {
+            const randEnemy = randEnemyThatShoots(s);
+            return <GameObject>{
+                    id: `bullet${s.objCount}`,
+                    x: randEnemy.x + 10,
+                    y: randEnemy.y + 20,
+                    velX: 0,
+                    velY: 3
+                }
             };
 
     const bulletOnCanvas = (b: Bullet) =>
@@ -193,18 +196,22 @@ function spaceinvaders() {
             i.y < j.y + 20;
         const
             // from Observable Asteroids
-            allBulletsAndEnemies = s.bullets.flatMap(b => s.enemyTracker.enemies.map(e => <[GameObject, GameObject]>[b, e])),
+            allBulletsAndEnemies = s.bullets.flatMap(b => s.enemyTracker.enemies.map(e => <[GameObject, Enemy]>[b, e])),
             collided = allBulletsAndEnemies.filter(objectCollision),
             collidedBullets = collided.map(([bullet, _]) => bullet),
             collidedEnemies = collided.map(([_, enemy]) => enemy),
-            cut = except((a: GameObject | Enemy) => (b: GameObject | Enemy) => a.id === b.id);
+            cutBullets = except((a: Bullet) => (b: Bullet) => a.id === b.id),
+            cutEnemies = except((a: Enemy) => (b: Enemy) => a.id === b.id),
+            enemiesInCol = (s: State, col: number) => s.enemyTracker.enemies.filter(e => e.col === col),
+            lowerInCol = (e: Enemy, f: Enemy) => e.row > f.row ? e : f,
+            lowestInCol = (s: State, col: number) => enemiesInCol(s, col).reduce(lowerInCol);
         return <State>{
             ...s,
-            bullets: cut(s.bullets)(collidedBullets),
+            bullets: cutBullets(s.bullets)(collidedBullets),
             exit: s.exit.concat(collidedBullets, collidedEnemies),
             enemyTracker: {
                 ...s.enemyTracker,
-                enemies: cut(s.enemyTracker.enemies)(collidedEnemies)
+                enemies: cutEnemies(s.enemyTracker.enemies.map(e => e.row === lowestInCol(s, e.col).row ? <Enemy>{...e, canShoot: true} : e))(collidedEnemies)
             }
         }
     }
@@ -227,25 +234,25 @@ function spaceinvaders() {
             ...s,
             player: { ...s.player, x: e.mousePos.x - 10 },
         } :
-            e instanceof MoveLeft ? <State>{
-                ...s,
-                player: { ...s.player, velX: e.on ? -5 : 0 },
-            } :
-                e instanceof MoveRight ? <State>{
-                    ...s,
-                    player: { ...s.player, velX: e.on ? 5 : 0 },
-                } :
-                    e instanceof PlayerShoot ? <State>{
-                        ...s,
-                        bullets: s.bullets.concat(newPlayerBullet(s)),
-                        objCount: s.objCount + 1
-                    } :
-                        e instanceof EnemyShoot ? <State>{
-                            ...s,
-                            bullets: s.bullets.concat(newEnemyBullet(s)),
-                            objCount: s.objCount + 1
-                        }
-                            : tick(s, e.elapsed);
+        e instanceof MoveLeft ? <State>{
+            ...s,
+            player: { ...s.player, velX: e.on ? -5 : 0 },
+        } :
+        e instanceof MoveRight ? <State>{
+            ...s,
+            player: { ...s.player, velX: e.on ? 5 : 0 },
+        } :
+        e instanceof PlayerShoot ? <State>{
+            ...s,
+            bullets: s.bullets.concat(newPlayerBullet(s)),
+            objCount: s.objCount + 1
+        } :
+        e instanceof EnemyShoot ? <State>{
+            ...s,
+            bullets: s.bullets.concat(newEnemyBullet(s)),
+            objCount: s.objCount + 1
+        }
+        : tick(s, e.elapsed);
 
     const subscription =
         merge(
@@ -256,10 +263,10 @@ function spaceinvaders() {
             startMoveRight, stopMoveRight,
             spacePress
         )
-            .pipe(
-                scan(reduceState, initialState)
-            )
-            .subscribe(updateView);
+        .pipe(
+            scan(reduceState, initialState)
+        )
+        .subscribe(updateView);
 
     function updateView(s: State) {
         // from Observable Asteroids
@@ -271,7 +278,6 @@ function spaceinvaders() {
                 v.setAttribute('width', String(2));
                 v.setAttribute('height', String(8));
                 v.setAttribute('fill', 'white');
-                //v.classList.add('bullet');
                 canvas.appendChild(v);
                 return v;
             }
@@ -286,7 +292,6 @@ function spaceinvaders() {
                 v.setAttribute('width', String(20));
                 v.setAttribute('height', String(20));
                 v.setAttribute('fill', 'lightgreen');
-                //v.classList.add('enemy');
                 canvas.appendChild(v);
                 return v;
             }
