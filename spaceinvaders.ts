@@ -1,4 +1,4 @@
-import { empty, fromEvent, interval, merge, of } from 'rxjs';
+import { fromEvent, interval, merge, of } from 'rxjs';
 import { map, filter, scan } from 'rxjs/operators';
 
 function spaceinvaders() {
@@ -87,7 +87,7 @@ function spaceinvaders() {
             id: 'enemyTracker',
             x: 10,
             y: 20,
-            velX: 0.5,
+            velX: 0.3,
             velY: 0,
             enemies: initEnemies()
         },
@@ -157,8 +157,7 @@ function spaceinvaders() {
 
     const randEnemyThatShoots = (s: State) => {
         const enemiesThatShoot = s.enemyTracker.enemies.filter(e => e.canShoot === true);
-        const randEnemy = rng.nextInt() % (enemiesThatShoot.length);
-        console.log(randEnemy, enemiesThatShoot[randEnemy]);
+        const randEnemy = rng.nextInt() % (enemiesThatShoot.length - 1);
         return enemiesThatShoot.length > 0 ? enemiesThatShoot[randEnemy] : s.enemyTracker.enemies[0];
     }
 
@@ -178,7 +177,7 @@ function spaceinvaders() {
                     x: randEnemy.x + 10,
                     y: randEnemy.y + 20,
                     velX: 0,
-                    velY: 3
+                    velY: 5
                 }
             };
 
