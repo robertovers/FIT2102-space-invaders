@@ -9,8 +9,8 @@ function spaceinvaders() {
         GAME_HEIGHT: 600,
         INITIAL_X: 300,
         INITIAL_Y: 560,
-        ENEMY_WIDTH: 20,
-        ENEMY_HEIGHT: 20,
+        ENEMY_WIDTH: 30,
+        ENEMY_HEIGHT: 30,
         ENEMY_SPACING: 40
     } as const;
 
@@ -71,8 +71,8 @@ function spaceinvaders() {
     const initEnemies = () => enemyRowCols.map(coords =>
         <Enemy>{
             id: `enemy${coords[0]}${coords[1]}`,
-            x: coords[1] * 40,
-            y: coords[0] * 40,
+            x: coords[1] * Constants.ENEMY_SPACING,
+            y: coords[0] * Constants.ENEMY_SPACING,
             col: coords[1],
             row: coords[0],
             canShoot: coords[0] === 5 ? true : false
@@ -90,7 +90,7 @@ function spaceinvaders() {
         bullets: [],
         enemyTracker: {
             id: 'enemyTracker',
-            x: 10,
+            x: 5,
             y: 20,
             velX: 0.3,
             velY: 0,
@@ -165,8 +165,8 @@ function spaceinvaders() {
      */
     const moveEnemy = (et: EnemyTracker) => (e: Enemy) => <Enemy>{
         ...e,
-        x: et.x + e.col * 40,
-        y: et.y + e.row * 40
+        x: et.x + e.col * Constants.ENEMY_SPACING,
+        y: et.y + e.row * Constants.ENEMY_SPACING
     };
 
     /**
@@ -215,8 +215,8 @@ function spaceinvaders() {
         const randEnemy = randEnemyThatShoots(s);
         return <GameObject>{
             id: `bullet${s.objCount}`,
-            x: randEnemy.x + 10,
-            y: randEnemy.y + 20,
+            x: randEnemy.x + (Constants.ENEMY_WIDTH / 2),
+            y: randEnemy.y + Constants.ENEMY_HEIGHT + 2, 
             velX: 0,
             velY: 5
         }
@@ -247,9 +247,9 @@ function spaceinvaders() {
          */
         const objectCollision = ([i, j]: [GameObject, GameObject]) =>
             i.x > j.x &&
-            i.x < j.x + 20 &&
+            i.x < j.x + Constants.ENEMY_WIDTH &&
             i.y > j.y &&
-            i.y < j.y + 20;
+            i.y < j.y + Constants.ENEMY_HEIGHT;
 
         const
             // from Observable Asteroids
@@ -262,6 +262,7 @@ function spaceinvaders() {
             enemiesInCol = (s: State, col: number) => s.enemyTracker.enemies.filter(e => e.col === col),
             lowerInCol = (e: Enemy, f: Enemy) => e.row > f.row ? e : f,
             lowestInCol = (s: State, col: number) => enemiesInCol(s, col).reduce(lowerInCol);
+        
         return <State>{
             ...s,
             bullets: cutBullets(s.bullets)(collidedBullets),
@@ -363,11 +364,11 @@ function spaceinvaders() {
         });
         s.enemyTracker.enemies.forEach(e => {
             const createEnemyView = () => {
-                const v = document.createElementNS(canvas.namespaceURI, 'rect')!;
+                const v = document.createElementNS(canvas.namespaceURI, 'image')!;
                 v.setAttribute('id', e!.id);
-                v.setAttribute('width', String(20));
-                v.setAttribute('height', String(20));
-                v.setAttribute('fill', 'lightgreen');
+                v.setAttribute('width', String(Constants.ENEMY_WIDTH));
+                v.setAttribute('height', String(Constants.ENEMY_HEIGHT));
+                v.setAttribute('href', 'assets/alien.png');
                 canvas.appendChild(v);
                 return v;
             }
