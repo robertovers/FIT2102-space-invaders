@@ -3,13 +3,18 @@ import { map, filter, scan } from 'rxjs/operators';
 
 function spaceinvaders() {
 
+    // constants
     const Constants = {
-        gameWidth: 600,
-        gameHeight: 600,
-        initialX: 300,
-        initialY: 560
+        GAME_WIDTH: 600,
+        GAME_HEIGHT: 600,
+        INITIAL_X: 300,
+        INITIAL_Y: 560,
+        ENEMY_WIDTH: 20,
+        ENEMY_HEIGHT: 20,
+        ENEMY_SPACING: 40
     } as const;
 
+    // classes
     class Tick { constructor(public readonly elapsed: number) { } }
     class MoveLeft { constructor(public readonly on: boolean) { } }
     class MoveRight { constructor(public readonly on: boolean) { } }
@@ -37,16 +42,16 @@ function spaceinvaders() {
     interface IPlayer extends GameObject {
         status: number,
     }
+   
+    interface IEnemies extends GameObject {
+        enemies: ReadonlyArray<Enemy>
+    }
 
     type Player = Readonly<IPlayer>
 
     type Bullet = Readonly<GameObject>
 
     type Enemy = Readonly<IEnemy>
-
-    interface IEnemies extends GameObject {
-        enemies: ReadonlyArray<Enemy>
-    }
 
     type EnemyTracker = Readonly<IEnemies>
 
@@ -76,8 +81,8 @@ function spaceinvaders() {
     const initialState: State = {
         player: {
             id: 'ship',
-            x: Constants.initialX,
-            y: Constants.initialY,
+            x: Constants.INITIAL_X,
+            y: Constants.INITIAL_Y,
             velX: 0,
             velY: 0,
             status: 0
@@ -133,66 +138,119 @@ function spaceinvaders() {
         gameClock = interval(10).pipe(map(elapsed => new Tick(elapsed))),
         enemyShootStream = interval(2000).pipe(map(() => new EnemyShoot()));
 
-    const
-        movePlayer = (p: Player) => <Player>{
-            ...p,
-            x: p.x + p.velX,
-        },
-        moveBullet = (b: Bullet) => <GameObject>{
-            ...b,
-            y: b.y + b.velY
-        },
-        moveEnemy = (et: EnemyTracker) => (e: Enemy) => <Enemy>{
-            ...e,
-            x: et.x + e.col * 40,
-            y: et.y + e.row * 40
-        },
-        moveEnemies = (et: EnemyTracker) => <EnemyTracker>{
-            ...et,
-            x: et.x > 90 ? 89 : et.x < 10 ? 11 : et.x + et.velX,
-            y: et.y + et.velY,
-            velX: et.x > 90 || et.x < 10 ? (-1) * et.velX : et.velX,
-            enemies: et.enemies.map(moveEnemy(et))
-        };
+    /**
+     * 
+     * @param p 
+     * @returns 
+     */
+    const movePlayer = (p: Player) => <Player>{
+        ...p,
+        x: p.x + p.velX,
+    };
 
+    /**
+     * 
+     * @param b 
+     * @returns 
+     */
+    const moveBullet = (b: Bullet) => <GameObject>{
+        ...b,
+        y: b.y + b.velY
+    };
+
+    /**
+     * 
+     * @param et 
+     * @returns 
+     */
+    const moveEnemy = (et: EnemyTracker) => (e: Enemy) => <Enemy>{
+        ...e,
+        x: et.x + e.col * 40,
+        y: et.y + e.row * 40
+    };
+
+    /**
+     * 
+     * @param et 
+     * @returns 
+     */
+    const moveEnemies = (et: EnemyTracker) => <EnemyTracker>{
+        ...et,
+        x: et.x > 90 ? 89 : et.x < 10 ? 11 : et.x + et.velX,
+        y: et.y + et.velY,
+        velX: et.x > 90 || et.x < 10 ? (-1) * et.velX : et.velX,
+        enemies: et.enemies.map(moveEnemy(et))
+    };
+
+    /**
+     * 
+     * @param s 
+     * @returns 
+     */
     const randEnemyThatShoots = (s: State) => {
         const enemiesThatShoot = s.enemyTracker.enemies.filter(e => e.canShoot === true);
         const randEnemy = rng.nextInt() % (enemiesThatShoot.length - 1);
         return enemiesThatShoot.length > 0 ? enemiesThatShoot[randEnemy] : s.enemyTracker.enemies[0];
-    }
+    };
 
-    const
-        newPlayerBullet = (s: State) =>
-            <GameObject>{
-                id: `bullet${s.objCount}`,
-                x: s.player.x - 1,
-                y: s.player.y - 15,
-                velX: 0,
-                velY: -5
-            },
-        newEnemyBullet = (s: State) => {
-            const randEnemy = randEnemyThatShoots(s);
-            return <GameObject>{
-                    id: `bullet${s.objCount}`,
-                    x: randEnemy.x + 10,
-                    y: randEnemy.y + 20,
-                    velX: 0,
-                    velY: 5
-                }
-            };
+    /**
+     * 
+     * @param s 
+     * @returns 
+     */
+    const newPlayerBullet = (s: State) => <GameObject>{
+        id: `bullet${s.objCount}`,
+        x: s.player.x - 1,
+        y: s.player.y - 15,
+        velX: 0,
+        velY: -5
+    };
 
+    /**
+     * 
+     * @param s 
+     * @returns 
+     */
+    const newEnemyBullet = (s: State) => {
+        const randEnemy = randEnemyThatShoots(s);
+        return <GameObject>{
+            id: `bullet${s.objCount}`,
+            x: randEnemy.x + 10,
+            y: randEnemy.y + 20,
+            velX: 0,
+            velY: 5
+        }
+    };
+
+    /**
+     * 
+     * @param b 
+     * @returns 
+     */
     const bulletOnCanvas = (b: Bullet) =>
-        b.x <= Constants.gameWidth &&
-        b.y <= Constants.gameHeight &&
+        b.x <= Constants.GAME_WIDTH &&
+        b.y <= Constants.GAME_HEIGHT &&
         b.x >= 0 &&
         b.y + 20 >= 0;
 
+    /**
+     * 
+     * @param s 
+     * @returns 
+     */
     const handleCollisions = (s: State) => {
+
+        /**
+         * 
+         * @param param0 
+         * @returns 
+         */
         const objectCollision = ([i, j]: [GameObject, GameObject]) =>
             i.x > j.x &&
             i.x < j.x + 20 &&
             i.y > j.y &&
             i.y < j.y + 20;
+
         const
             // from Observable Asteroids
             allBulletsAndEnemies = s.bullets.flatMap(b => s.enemyTracker.enemies.map(e => <[GameObject, Enemy]>[b, e])),
@@ -215,6 +273,12 @@ function spaceinvaders() {
         }
     }
 
+    /**
+     * 
+     * @param s 
+     * @param elapsed 
+     * @returns 
+     */
     const tick = (s: State, elapsed: number) => {
         const
             offCanvasBullets = s.bullets.filter(b => !bulletOnCanvas(b)),
@@ -228,6 +292,12 @@ function spaceinvaders() {
         })
     };
 
+    /**
+     * 
+     * @param s 
+     * @param e 
+     * @returns 
+     */
     const reduceState = (s: State, e: MouseMove | MoveLeft | MoveRight | PlayerShoot | EnemyShoot | Tick) =>
         e instanceof MouseMove ? <State>{
             ...s,
@@ -253,6 +323,9 @@ function spaceinvaders() {
         }
         : tick(s, e.elapsed);
 
+    /**
+     * 
+     */
     const subscription =
         merge(
             gameClock,
@@ -267,6 +340,10 @@ function spaceinvaders() {
         )
         .subscribe(updateView);
 
+    /**
+     * 
+     * @param s 
+     */
     function updateView(s: State) {
         // from Observable Asteroids
         ship.setAttribute('transform', `translate(${s.player.x},${s.player.y})`);
