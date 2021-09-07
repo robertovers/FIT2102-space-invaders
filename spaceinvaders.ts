@@ -8,7 +8,9 @@ function spaceinvaders() {
         GAME_WIDTH: 600,
         GAME_HEIGHT: 600,
         INITIAL_X: 300,
-        INITIAL_Y: 560,
+        INITIAL_Y: 550,
+        PLAYER_WIDTH: 40,
+        PLAYER_HEIGHT: 40,
         ENEMY_WIDTH: 30,
         ENEMY_HEIGHT: 30,
         ENEMY_SPACING: 40
@@ -302,7 +304,7 @@ function spaceinvaders() {
     const reduceState = (s: State, e: MouseMove | MoveLeft | MoveRight | PlayerShoot | EnemyShoot | Tick) =>
         e instanceof MouseMove ? <State>{
             ...s,
-            player: { ...s.player, x: e.mousePos.x - 10 },
+            player: { ...s.player, x: e.mousePos.x - 10},
         } :
         e instanceof MoveLeft ? <State>{
             ...s,
@@ -347,7 +349,7 @@ function spaceinvaders() {
      */
     function updateView(s: State) {
         // from Observable Asteroids
-        ship.setAttribute('transform', `translate(${s.player.x},${s.player.y})`);
+        ship.setAttribute('transform', `translate(${s.player.x - Constants.PLAYER_WIDTH / 2},${s.player.y})`);
         s.bullets.forEach(b => {
             const createBulletView = () => {
                 const v = document.createElementNS(canvas.namespaceURI, 'rect')!;
