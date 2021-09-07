@@ -62,7 +62,8 @@ function spaceinvaders() {
         bullets: ReadonlyArray<Bullet>,
         enemyTracker: EnemyTracker,
         objCount: number,
-        exit: ReadonlyArray<GameObject>
+        exit: ReadonlyArray<GameObject>,
+        score: number
     }>
 
     const
@@ -99,7 +100,8 @@ function spaceinvaders() {
             enemies: initEnemies()
         },
         objCount: 0,
-        exit: []
+        exit: [],
+        score: 0
     };
 
     const rng = new RNG(20);
@@ -272,7 +274,8 @@ function spaceinvaders() {
             enemyTracker: {
                 ...s.enemyTracker,
                 enemies: cutEnemies(s.enemyTracker.enemies.map(e => e.row === lowestInCol(s, e.col).row ? <Enemy>{...e, canShoot: true} : e))(collidedEnemies)
-            }
+            },
+            score: s.score + collidedEnemies.length * 10
         }
     }
 
@@ -348,6 +351,7 @@ function spaceinvaders() {
      * @param s 
      */
     function updateView(s: State) {
+        document.getElementById('score')!.innerHTML = `score: ${String(s.score)}`;
         // from Observable Asteroids
         ship.setAttribute('transform', `translate(${s.player.x - Constants.PLAYER_WIDTH / 2},${s.player.y})`);
         s.bullets.forEach(b => {

@@ -1,21 +1,24 @@
-body {
-    font-family: arial, helvetica, sans-serif;
+.center {
+    background-color: rgb(80, 80, 80);
+    padding-top: 20px;
+    font-family: menlo;
+    user-select: none;
 }
 
 h1 {
     font-size: 24px;
-    font-family: menlo;
     font-weight: 200;
     color: white;
 }
 
 h4 {
-    font-family: menlo;
     font-weight: 200;
     color: white;
 }
 
-.center {
-    background-color: rgb(80, 80, 80);
-    padding-top: 20px;
+#score {
+    color: white;
+    position: absolute;
+    padding-top: 5px;
+    padding-left: 20px;
 }
