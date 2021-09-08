@@ -14,6 +14,8 @@ function spaceinvaders() {
         ENEMY_WIDTH: 30,
         ENEMY_HEIGHT: 30,
         ENEMY_SPACING: 40,
+        SHIELD_SPACING: 105,
+        SHIELD_TILE_SIZE: 5,
         DOWN_STEP_FREQ: 500,
         DOWN_STEP_LEN: 20,
         ET_INITIAL_X: 5,
@@ -47,15 +49,23 @@ function spaceinvaders() {
     }
 
     interface IPlayer extends GameObject {
-        status: number,
     }
    
-    interface IEnemies extends GameObject {
+    interface IEnemyTracker extends GameObject {
         enemies: ReadonlyArray<Enemy>
     }
 
-    interface IShield extends GameObject {
+    interface ITile extends GameObject {
+        col: number,
+        row: number
+    }
 
+    interface IShield extends GameObject {
+        tiles: ReadonlyArray<GameObject>
+    }
+
+    interface IShieldTracker extends GameObject {
+        shields: ReadonlyArray<Shield>
     }
 
     type Player = Readonly<IPlayer>
@@ -64,11 +74,16 @@ function spaceinvaders() {
 
     type Enemy = Readonly<IEnemy>
 
-    type EnemyTracker = Readonly<IEnemies>
+    type EnemyTracker = Readonly<IEnemyTracker>
+
+    type Tile = Readonly<ITile>
+
+    type Shield = Readonly<IShield>
 
     type State = Readonly<{
         player: Player,
         bullets: ReadonlyArray<Bullet>,
+        shields: ReadonlyArray<Shield>,
         enemyTracker: EnemyTracker,
         objCount: number,
         exit: ReadonlyArray<GameObject>,
@@ -81,7 +96,10 @@ function spaceinvaders() {
     const
         enemyCols = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
         enemyRows = [1, 2, 3, 4, 5],
-        enemyRowCols = enemyRows.flatMap(a => enemyCols.map(b => [a, b]));
+        enemyRowCols = enemyRows.flatMap(a => enemyCols.map(b => [a, b])),
+        tileCols = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        tileRows = [1, 2, 3, 4, 5, 6],
+        tileRowCols = tileRows.flatMap(a => tileCols.map(b => [a, b]));
 
     const initEnemies = () => enemyRowCols.map(coords =>
         <Enemy>{
@@ -93,6 +111,24 @@ function spaceinvaders() {
             canShoot: coords[0] === 5 ? true : false
         });
 
+    const initTiles = (x: number) => tileRowCols.map(coords =>
+        <Tile>{
+            id: `tile${coords[0]}${coords[1]}${x}`,
+            x: coords[1] * Constants.SHIELD_TILE_SIZE + x,
+            y: coords[0] * Constants.SHIELD_TILE_SIZE + 450,
+            col: coords[1],
+            row: coords[0],
+        });
+
+    const initShield = (num: number) => <Shield>{
+        id: `shield${num}`,
+        x: Constants.SHIELD_SPACING * num,
+        y: 450,
+        velX: 0,
+        velY: 0,
+        tiles: initTiles(Constants.SHIELD_SPACING * num)
+    }
+
     const initialState: State = {
         player: {
             id: 'ship',
@@ -100,9 +136,9 @@ function spaceinvaders() {
             y: Constants.PLAYER_INITIAL_Y,
             velX: 0,
             velY: 0,
-            status: 0
         },
         bullets: [],
+        shields: [1, 2, 3, 4].map(initShield),
         enemyTracker: {
             id: 'enemyTracker',
             x: Constants.ET_INITIAL_X,
@@ -450,6 +486,20 @@ function spaceinvaders() {
             v.setAttribute('x', String(e!.x));
             v.setAttribute('y', String(e!.y));
         });
+        s.shields.forEach(sh => sh.tiles.forEach(t => {
+            const createTileView = () => {
+                const v = document.createElementNS(canvas.namespaceURI, 'rect')!;
+                v.setAttribute('id', t!.id);
+                v.setAttribute('width', String(Constants.SHIELD_TILE_SIZE));
+                v.setAttribute('height', String(Constants.SHIELD_TILE_SIZE));
+                v.setAttribute('fill', 'lightblue');
+                canvas.appendChild(v);
+                return v;
+            }
+            const v = document.getElementById(t!.id) || createTileView();
+            v.setAttribute('x', String(t!.x));
+            v.setAttribute('y', String(t!.y));
+        }));
         s.exit.map(o => document.getElementById(o.id))
             .filter(o => o !== null && o !== undefined)
             .forEach(v => {
