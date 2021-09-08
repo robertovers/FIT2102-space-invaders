@@ -52,6 +52,10 @@ function spaceinvaders() {
         enemies: ReadonlyArray<Enemy>
     }
 
+    interface IShield extends GameObject {
+
+    }
+
     type Player = Readonly<IPlayer>
 
     type Bullet = Readonly<GameObject>
@@ -67,7 +71,8 @@ function spaceinvaders() {
         objCount: number,
         exit: ReadonlyArray<GameObject>,
         score: number,
-        level: number
+        level: number,
+        gameStatus: number
     }>
 
     const
@@ -106,7 +111,8 @@ function spaceinvaders() {
         objCount: 0,
         exit: [],
         score: 0,
-        level: 1
+        level: 1,
+        gameStatus: 0
     };
 
     const rng = new RNG(20);
@@ -273,7 +279,9 @@ function spaceinvaders() {
         const
             // from Observable Asteroids
             allBulletsAndEnemies = s.bullets.flatMap(b => s.enemyTracker.enemies.map(e => <[GameObject, Enemy]>[b, e])),
+            allBulletsAndPlayer = s.bullets.map(b => <[GameObject, GameObject]>[b, s.player]),
             collided = allBulletsAndEnemies.filter(objectCollision),
+            playerCollided = allBulletsAndPlayer.filter(objectCollision).length > 0,
             collidedBullets = collided.map(([bullet, _]) => bullet),
             collidedEnemies = collided.map(([_, enemy]) => enemy),
             cutBullets = except((a: Bullet) => (b: Bullet) => a.id === b.id),
@@ -282,22 +290,22 @@ function spaceinvaders() {
             lowerInCol = (e: Enemy, f: Enemy) => e.row > f.row ? e : f,
             lowestInCol = (s: State, col: number) => enemiesInCol(s, col).reduce(lowerInCol),
             noEnemies = (s: State) => s.enemyTracker.enemies.length === 0;
-        
+
         return <State>{
-            ...s,
-            bullets: noEnemies(s) ? [] : cutBullets(s.bullets)(collidedBullets),
-            exit: noEnemies(s) ? s.exit.concat(s.bullets) : s.exit.concat(collidedBullets, collidedEnemies),
-            enemyTracker: {
-                ...s.enemyTracker,
-                x: noEnemies(s) ? Constants.ET_INITIAL_X : s.enemyTracker.x,
-                y: noEnemies(s) ? Constants.ET_INITIAL_Y : s.enemyTracker.y,
-                enemies: noEnemies(s) ? initEnemies() 
-                    : cutEnemies(s.enemyTracker.enemies.map(e => 
-                    e.row === lowestInCol(s, e.col).row ? <Enemy>{...e, canShoot: true} : e))(collidedEnemies),
-            },
-            score: s.score + collidedEnemies.length * 10,
-            level: noEnemies(s) ? s.level + 1 : s.level
-        }
+                ...s,
+                bullets: noEnemies(s) ? [] : cutBullets(s.bullets)(collidedBullets),
+                exit: noEnemies(s) ? s.exit.concat(s.bullets) : s.exit.concat(collidedBullets, collidedEnemies),
+                enemyTracker: {
+                    ...s.enemyTracker,
+                    x: noEnemies(s) ? Constants.ET_INITIAL_X : s.enemyTracker.x,
+                    y: noEnemies(s) ? Constants.ET_INITIAL_Y : s.enemyTracker.y,
+                    enemies: noEnemies(s) ? initEnemies()
+                        : cutEnemies(s.enemyTracker.enemies.map(e =>
+                            e.row === lowestInCol(s, e.col).row ? <Enemy>{ ...e, canShoot: true } : e))(collidedEnemies),
+                },
+                score: s.score + collidedEnemies.length * 10,
+                level: noEnemies(s) ? s.level + 1 : s.level
+            };
     }
 
     /**
@@ -311,12 +319,12 @@ function spaceinvaders() {
             offCanvasBullets = s.bullets.filter(b => !bulletOnCanvas(b)),
             onCanvasBullets = s.bullets.filter(bulletOnCanvas);
         return handleCollisions({
-            ...s,
-            player: movePlayer(s.player),
-            bullets: onCanvasBullets.map(moveBullet),
-            enemyTracker: moveEnemies(s.enemyTracker, elapsed),
-            exit: offCanvasBullets
-        })
+                ...s,
+                player: movePlayer(s.player),
+                bullets: onCanvasBullets.map(moveBullet),
+                enemyTracker: moveEnemies(s.enemyTracker, elapsed),
+                exit: offCanvasBullets
+            });
     };
 
     /**
