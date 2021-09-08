@@ -191,10 +191,17 @@ function spaceinvaders() {
      * @param s 
      * @returns 
      */
+    const enemiesThatShoot = (s: State) => 
+        s.enemyTracker.enemies.filter(e => e.canShoot === true);
+
+    /**
+     * 
+     * @param s 
+     * @returns 
+     */
     const randEnemyThatShoots = (s: State) => {
-        const enemiesThatShoot = s.enemyTracker.enemies.filter(e => e.canShoot === true);
-        const randEnemy = rng.nextInt() % (enemiesThatShoot.length - 1);
-        return enemiesThatShoot.length > 0 ? enemiesThatShoot[randEnemy] : s.enemyTracker.enemies[0];
+        const randEnemy = rng.nextInt(enemiesThatShoot(s).length);
+        return enemiesThatShoot(s)[randEnemy];
     };
 
     /**
@@ -223,7 +230,7 @@ function spaceinvaders() {
             y: randEnemy.y + Constants.ENEMY_HEIGHT + 2, 
             velX: 0,
             velY: 5
-        }
+        };
     };
 
     /**
@@ -324,7 +331,7 @@ function spaceinvaders() {
         } :
         e instanceof EnemyShoot ? <State>{
             ...s,
-            bullets: s.bullets.concat(newEnemyBullet(s)),
+            bullets: enemiesThatShoot(s).length > 0 ? s.bullets.concat(newEnemyBullet(s)) : s.bullets,
             objCount: s.objCount + 1
         }
         : tick(s, e.elapsed);
@@ -414,13 +421,14 @@ class RNG {
         this.state = seed ? seed : Math.floor(Math.random() * (this.m - 1));
     }
 
-    nextInt() {
-        this.state = (this.a * this.state + this.c) % this.m;
+    // modified so the bound is given as input
+    nextInt(b: number) {
+        this.state = (this.a * this.state + this.c) % b;
         return this.state;
     }
 
     nextFloat() {
-        return this.nextInt() / (this.m - 1);
+        return this.nextInt(this.m) / (this.m - 1);
     }
 }
 

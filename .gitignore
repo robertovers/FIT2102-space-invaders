@@ -1,5 +1,5 @@
 node_modules
 assets/.DS_Store
-.DS_Store
 assets/ship.png
 .gitignore
+.DS_Store
