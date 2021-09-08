@@ -22,3 +22,11 @@ h4 {
     padding-top: 5px;
     padding-left: 20px;
 }
+
+#level {
+    color: white;
+    position: absolute;
+    padding-top: 5px;
+    padding-left: 500px;
+    text-align: right;
+}
