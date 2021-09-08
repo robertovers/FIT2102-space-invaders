@@ -228,19 +228,6 @@ function spaceinvaders() {
      * @param s 
      * @returns 
      */
-    const newPlayerBullet = (s: State) => <GameObject>{
-        id: `bullet${s.objCount}`,
-        x: s.player.x + Constants.PLAYER_WIDTH / 2 - 1,
-        y: s.player.y - 15,
-        velX: 0,
-        velY: -5
-    };
-
-    /**
-     * 
-     * @param s 
-     * @returns 
-     */
     const newEnemyBullet = (s: State) => {
         const randEnemy = randEnemyThatShoots(s);
         return <GameObject>{
@@ -250,6 +237,19 @@ function spaceinvaders() {
             velX: 0,
             velY: 5
         };
+    };
+
+    /**
+     * 
+     * @param s 
+     * @returns 
+     */
+     const newPlayerBullet = (s: State) => <GameObject>{
+        id: `bullet${s.objCount}`,
+        x: s.player.x + Constants.PLAYER_WIDTH / 2 - 1,
+        y: s.player.y - 15,
+        velX: 0,
+        velY: -5
     };
 
     /**
@@ -306,7 +306,8 @@ function spaceinvaders() {
             allBulletsAndEnemies = s.bullets.flatMap(b => s.enemyTracker.enemies.map(e => <[GameObject, Enemy]>[b, e])),
             allBulletsAndPlayer = s.bullets.map(b => <[GameObject, GameObject]>[b, s.player]),
             collided = allBulletsAndEnemies.filter(objectCollision),
-            playerCollided = allBulletsAndPlayer.filter(objectCollision).length > 0,
+            playerCollided = allBulletsAndPlayer.filter(objectCollision).length > 0 
+                || s.enemyTracker.enemies.filter(e => e.y > 530).length > 0,
             collidedBullets = collided.map(([bullet, _]) => bullet),
             collidedEnemies = collided.map(([_, enemy]) => enemy),
             cutBullets = except((a: Bullet) => (b: Bullet) => a.id === b.id),
