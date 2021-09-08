@@ -1,23 +1,25 @@
 .center {
     background-color: rgb(80, 80, 80);
     padding-top: 20px;
-    font-family: menlo;
+    font-family: monospace;
     user-select: none;
 }
 
 h1 {
-    font-size: 24px;
+    font-size: 25px;
     font-weight: 200;
     color: white;
 }
 
 h4 {
+    font-size: 15px;
     font-weight: 200;
     color: white;
 }
 
 #score {
     color: white;
+    font-size: 15px;
     position: absolute;
     padding-top: 5px;
     padding-left: 20px;
@@ -25,8 +27,18 @@ h4 {
 
 #level {
     color: white;
+    font-size: 15px;
     position: absolute;
     padding-top: 5px;
     padding-left: 500px;
     text-align: right;
+}
+
+#gameover {
+    color: white;
+    font-size: 20px;
+    position: absolute;
+    text-align: center;
+    top: 350px;
+    left: 185px;
 }

@@ -26,6 +26,7 @@ function spaceinvaders() {
     class MouseMove { constructor(public readonly mousePos: { x: number, y: number }) { } }
     class PlayerShoot { constructor() { } }
     class EnemyShoot { constructor() { } }
+    class ResetGame { constructor() { } }
 
     type Event = 'keydown' | 'keyup' | 'mousemove' | 'mousedown';
     type Key = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp';
@@ -151,7 +152,10 @@ function spaceinvaders() {
             filter(mouseOnCanvas),
             map(({ clientX, clientY }) => new MouseMove({ x: clientX - Constants.PLAYER_WIDTH / 2, y: clientY }))),
         gameClock = interval(10).pipe(map(elapsed => new Tick(elapsed))),
-        enemyShootStream = interval(2000).pipe(map(() => new EnemyShoot()));
+        enemyShootStream = interval(2000).pipe(map(() => new EnemyShoot())),
+        reset = fromEvent<MouseEvent>(document, 'mousedown').pipe(
+            filter(mouseOnCanvas),
+            map(() => new ResetGame()));
 
     /**
      * 
@@ -225,7 +229,7 @@ function spaceinvaders() {
      */
     const newPlayerBullet = (s: State) => <GameObject>{
         id: `bullet${s.objCount}`,
-        x: s.player.x - 1,
+        x: s.player.x + Constants.PLAYER_WIDTH / 2 - 1,
         y: s.player.y - 15,
         velX: 0,
         velY: -5
@@ -259,6 +263,26 @@ function spaceinvaders() {
         b.y + 20 >= 0;
 
     /**
+     * Adapted from observalble asteroids
+     * @param s 
+     * @returns 
+     */
+    const clearObjects = (s: State) => {
+        s.exit.concat(s.bullets, s.enemyTracker.enemies)
+            .map(o => document.getElementById(o.id))
+            .filter(o => o !== null && o !== undefined)
+            .forEach(v => {
+                try {
+                    canvas.removeChild(v!)
+                } catch (e) {
+                    console.log("Already removed: " + v!.id)
+                }
+            });
+        document.getElementById('gameover')!.innerHTML = 'GAME OVER<br />click screen to reset';
+        return initialState; 
+    }
+
+    /**
      * 
      * @param s 
      * @returns 
@@ -290,6 +314,8 @@ function spaceinvaders() {
             lowerInCol = (e: Enemy, f: Enemy) => e.row > f.row ? e : f,
             lowestInCol = (s: State, col: number) => enemiesInCol(s, col).reduce(lowerInCol),
             noEnemies = (s: State) => s.enemyTracker.enemies.length === 0;
+
+        if (playerCollided) clearObjects(s);
 
         return playerCollided ?
             <State>{
@@ -339,7 +365,7 @@ function spaceinvaders() {
      * @param e 
      * @returns 
      */
-    const reduceState = (s: State, e: MouseMove | MoveLeft | MoveRight | PlayerShoot | EnemyShoot | Tick) =>
+    const reduceState = (s: State, e: MouseMove | MoveLeft | MoveRight | PlayerShoot | EnemyShoot | Tick | ResetGame) =>
         e instanceof MouseMove ? <State>{
             ...s,
             player: { ...s.player, x: e.mousePos.x - 10},
@@ -361,7 +387,8 @@ function spaceinvaders() {
             ...s,
             bullets: enemiesThatShoot(s).length > 0 ? s.bullets.concat(newEnemyBullet(s)) : s.bullets,
             objCount: s.objCount + 1
-        }
+        } 
+        : e instanceof ResetGame ? s.gameStatus === 1 ? initialState : s
         : tick(s, e.elapsed);
 
     /**
@@ -374,7 +401,8 @@ function spaceinvaders() {
             mouseMove, mouseClick,
             startMoveLeft, stopMoveLeft,
             startMoveRight, stopMoveRight,
-            spacePress
+            spacePress,
+            reset
         )
         .pipe(
             scan(reduceState, initialState),
@@ -387,8 +415,9 @@ function spaceinvaders() {
      * @param s 
      */
     function updateView(s: State) {
-        document.getElementById('score')!.innerHTML = `score: ${String(s.score)}`;
-        document.getElementById('level')!.innerHTML = `level: ${String(s.level)}`;
+        document.getElementById('gameover')!.innerHTML = '';
+        document.getElementById('score')!.innerHTML = `SCORE: ${String(s.score)}`;
+        document.getElementById('level')!.innerHTML = `LEVEL: ${String(s.level)}`;
         // from Observable Asteroids
         ship.setAttribute('transform', `translate(${s.player.x}, ${s.player.y})`);
         s.bullets.forEach(b => {
