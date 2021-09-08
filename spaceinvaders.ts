@@ -11,11 +11,13 @@ function spaceinvaders() {
         PLAYER_INITIAL_Y: 550,
         PLAYER_WIDTH: 40,
         PLAYER_HEIGHT: 40,
+        BULLET_WIDTH: 2,
+        BULLET_HEIGHT: 8,
         ENEMY_WIDTH: 30,
         ENEMY_HEIGHT: 30,
         ENEMY_SPACING: 40,
         SHIELD_SPACING: 105,
-        SHIELD_TILE_SIZE: 5,
+        SHIELD_TILE_SIZE: 7,
         DOWN_STEP_FREQ: 500,
         DOWN_STEP_LEN: 20,
         ET_INITIAL_X: 5,
@@ -40,6 +42,8 @@ function spaceinvaders() {
         y: number,
         velX: number,
         velY: number,
+        objectWidth: number,
+        objectHeight: number,
     }>
 
     interface IEnemy extends GameObject {
@@ -61,7 +65,7 @@ function spaceinvaders() {
     }
 
     interface IShield extends GameObject {
-        tiles: ReadonlyArray<GameObject>
+        tiles: ReadonlyArray<Tile>
     }
 
     interface IShieldTracker extends GameObject {
@@ -97,8 +101,8 @@ function spaceinvaders() {
         enemyCols = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
         enemyRows = [1, 2, 3, 4, 5],
         enemyRowCols = enemyRows.flatMap(a => enemyCols.map(b => [a, b])),
-        tileCols = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-        tileRows = [1, 2, 3, 4, 5, 6],
+        tileCols = [1, 2, 3, 4, 5, 6, 7],
+        tileRows = [1, 2, 3, 4, 5],
         tileRowCols = tileRows.flatMap(a => tileCols.map(b => [a, b]));
 
     const initEnemies = () => enemyRowCols.map(coords =>
@@ -108,25 +112,31 @@ function spaceinvaders() {
             y: coords[0] * Constants.ENEMY_SPACING + Constants.ET_INITIAL_Y,
             col: coords[1],
             row: coords[0],
-            canShoot: coords[0] === 5 ? true : false
+            canShoot: coords[0] === 5 ? true : false,
+            objectWidth: Constants.ENEMY_WIDTH,
+            objectHeight: Constants.ENEMY_HEIGHT
         });
 
     const initTiles = (x: number) => tileRowCols.map(coords =>
         <Tile>{
             id: `tile${coords[0]}${coords[1]}${x}`,
             x: coords[1] * Constants.SHIELD_TILE_SIZE + x,
-            y: coords[0] * Constants.SHIELD_TILE_SIZE + 450,
+            y: coords[0] * Constants.SHIELD_TILE_SIZE + 475,
             col: coords[1],
             row: coords[0],
+            objectWidth: Constants.SHIELD_TILE_SIZE,
+            objectHeight: Constants.SHIELD_TILE_SIZE
         });
 
     const initShield = (num: number) => <Shield>{
         id: `shield${num}`,
         x: Constants.SHIELD_SPACING * num,
-        y: 450,
+        y: 475,
         velX: 0,
         velY: 0,
-        tiles: initTiles(Constants.SHIELD_SPACING * num)
+        tiles: initTiles(Constants.SHIELD_SPACING * num),
+        objectWidth: 0,
+        objectHeight: 0
     }
 
     const initialState: State = {
@@ -136,6 +146,8 @@ function spaceinvaders() {
             y: Constants.PLAYER_INITIAL_Y,
             velX: 0,
             velY: 0,
+            objectWidth: Constants.PLAYER_WIDTH,
+            objectHeight: Constants.PLAYER_HEIGHT
         },
         bullets: [],
         shields: [1, 2, 3, 4].map(initShield),
@@ -145,7 +157,9 @@ function spaceinvaders() {
             y: Constants.ET_INITIAL_Y,
             velX: 0.3,
             velY: 0.6,
-            enemies: initEnemies()
+            enemies: initEnemies(),
+            objectWidth: Constants.ENEMY_WIDTH,
+            objectHeight: Constants.ENEMY_HEIGHT
         },
         objCount: 0,
         exit: [],
@@ -271,7 +285,9 @@ function spaceinvaders() {
             x: randEnemy.x + (Constants.ENEMY_WIDTH / 2),
             y: randEnemy.y + Constants.ENEMY_HEIGHT + 2, 
             velX: 0,
-            velY: 5
+            velY: 5,
+            objectWidth: 2,
+            objectHeight: 5
         };
     };
 
@@ -285,7 +301,9 @@ function spaceinvaders() {
         x: s.player.x + Constants.PLAYER_WIDTH / 2 - 1,
         y: s.player.y - 15,
         velX: 0,
-        velY: -5
+        velY: -5,
+        objectWidth: 2,
+        objectHeight: 5
     };
 
     /**
@@ -327,27 +345,32 @@ function spaceinvaders() {
     const handleCollisions = (s: State) => {
 
         /**
-         * 
+         * Determines if there is a collision between a Bullet and another GameObject.
          * @param param0 
          * @returns 
          */
         const objectCollision = ([i, j]: [GameObject, GameObject]) =>
-            i.x > j.x &&
-            i.x < j.x + Constants.ENEMY_WIDTH &&
-            i.y > j.y &&
-            i.y < j.y + Constants.ENEMY_HEIGHT;
+            i.x + i.objectWidth > j.x &&
+            i.x < j.x + j.objectWidth &&
+            i.y + i.objectHeight > j.y &&
+            i.y < j.y + j.objectHeight;
 
         const
             // from Observable Asteroids
-            allBulletsAndEnemies = s.bullets.flatMap(b => s.enemyTracker.enemies.map(e => <[GameObject, Enemy]>[b, e])),
-            allBulletsAndPlayer = s.bullets.map(b => <[GameObject, GameObject]>[b, s.player]),
-            collided = allBulletsAndEnemies.filter(objectCollision),
+            allBulletsAndEnemies = s.bullets.flatMap(b => s.enemyTracker.enemies.map(e => <[Bullet, Enemy]>[b, e])),
+            allBulletsAndPlayer = s.bullets.map(b => <[Bullet, Player]>[b, s.player]),
+            allBulletsAndTiles = s.bullets.flatMap(b => s.shields.flatMap(s => s.tiles.map(t => <[Bullet, Tile]>[b, t]))),
+            collidedBulletsEnemies = allBulletsAndEnemies.filter(objectCollision),
+            collidedBulletsTiles = allBulletsAndTiles.filter(objectCollision),
             playerCollided = allBulletsAndPlayer.filter(objectCollision).length > 0 
                 || s.enemyTracker.enemies.filter(e => e.y > 530).length > 0,
-            collidedBullets = collided.map(([bullet, _]) => bullet),
-            collidedEnemies = collided.map(([_, enemy]) => enemy),
-            cutBullets = except((a: Bullet) => (b: Bullet) => a.id === b.id),
+            collidedEnemies = collidedBulletsEnemies.map(([_, enemy]) => enemy),
+            collidedTiles = collidedBulletsTiles.map(([_, tile]) => tile),
+            collidedBullets = collidedBulletsEnemies.map(([bullet, _]) => bullet)
+                .concat(collidedBulletsTiles.map(([bullet, _]) => bullet)),
             cutEnemies = except((a: Enemy) => (b: Enemy) => a.id === b.id),
+            cutBullets = except((a: Bullet) => (b: Bullet) => a.id === b.id),
+            cutTiles = except((a: Tile) => (b: Tile) => a.id === b.id),
             enemiesInCol = (s: State, col: number) => s.enemyTracker.enemies.filter(e => e.col === col),
             lowerInCol = (e: Enemy, f: Enemy) => e.row > f.row ? e : f,
             lowestInCol = (s: State, col: number) => enemiesInCol(s, col).reduce(lowerInCol),
@@ -363,14 +386,18 @@ function spaceinvaders() {
             <State>{
                 ...s,
                 bullets: noEnemies(s) ? [] : cutBullets(s.bullets)(collidedBullets),
-                exit: noEnemies(s) ? s.exit.concat(s.bullets) : s.exit.concat(collidedBullets, collidedEnemies),
+                shields: s.shields.map(sh => <Shield>{
+                    ...sh,
+                    tiles: cutTiles(sh.tiles)(collidedTiles)
+                }),
+                exit: noEnemies(s) ? s.exit.concat(s.bullets) : s.exit.concat(collidedBullets, collidedEnemies, collidedTiles),
                 enemyTracker: {
                     ...s.enemyTracker,
                     x: noEnemies(s) ? Constants.ET_INITIAL_X : s.enemyTracker.x,
                     y: noEnemies(s) ? Constants.ET_INITIAL_Y : s.enemyTracker.y,
                     enemies: noEnemies(s) ? initEnemies()
                         : cutEnemies(s.enemyTracker.enemies.map(e =>
-                            e.row === lowestInCol(s, e.col).row ? <Enemy>{ ...e, canShoot: true } : e))(collidedEnemies),
+                            e.row === lowestInCol(s, e.col).row ? <Enemy>{...e, canShoot: true } : e))(collidedEnemies),
                 },
                 score: s.score + collidedEnemies.length * 10,
                 level: noEnemies(s) ? s.level + 1 : s.level
@@ -393,7 +420,7 @@ function spaceinvaders() {
             bullets: onCanvasBullets.map(moveBullet),
             enemyTracker: moveEnemies(s.enemyTracker, elapsed),
             exit: offCanvasBullets,
-            pseudoRNG: s.pseudoRNG * (s.player.x + s.bullets.length) % 1111111 
+            pseudoRNG: s.pseudoRNG * (s.player.x + s.bullets.length) % 1111111  // dumb pseudo-random number generator
         });
     };
 
@@ -462,8 +489,8 @@ function spaceinvaders() {
             const createBulletView = () => {
                 const v = document.createElementNS(canvas.namespaceURI, 'rect')!;
                 v.setAttribute('id', b.id);
-                v.setAttribute('width', String(2));
-                v.setAttribute('height', String(8));
+                v.setAttribute('width', String(b.objectWidth));
+                v.setAttribute('height', String(b.objectHeight));
                 v.setAttribute('fill', 'white');
                 canvas.appendChild(v);
                 return v;
@@ -476,8 +503,8 @@ function spaceinvaders() {
             const createEnemyView = () => {
                 const v = document.createElementNS(canvas.namespaceURI, 'image')!;
                 v.setAttribute('id', e!.id);
-                v.setAttribute('width', String(Constants.ENEMY_WIDTH));
-                v.setAttribute('height', String(Constants.ENEMY_HEIGHT));
+                v.setAttribute('width', String(e.objectWidth));
+                v.setAttribute('height', String(e.objectHeight));
                 v.setAttribute('href', 'assets/alien.png');
                 canvas.appendChild(v);
                 return v;
@@ -490,9 +517,9 @@ function spaceinvaders() {
             const createTileView = () => {
                 const v = document.createElementNS(canvas.namespaceURI, 'rect')!;
                 v.setAttribute('id', t!.id);
-                v.setAttribute('width', String(Constants.SHIELD_TILE_SIZE));
-                v.setAttribute('height', String(Constants.SHIELD_TILE_SIZE));
-                v.setAttribute('fill', 'lightblue');
+                v.setAttribute('width', String(t.objectWidth));
+                v.setAttribute('height', String(t.objectHeight));
+                v.setAttribute('fill', 'pink');
                 canvas.appendChild(v);
                 return v;
             }
