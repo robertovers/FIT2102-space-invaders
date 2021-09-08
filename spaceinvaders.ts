@@ -72,7 +72,8 @@ function spaceinvaders() {
         exit: ReadonlyArray<GameObject>,
         score: number,
         level: number,
-        gameStatus: number
+        gameStatus: number,
+        pseudoRNG: number
     }>
 
     const
@@ -112,10 +113,9 @@ function spaceinvaders() {
         exit: [],
         score: 0,
         level: 1,
-        gameStatus: 0
+        gameStatus: 0,
+        pseudoRNG: 17
     };
-
-    const rng = new RNG(20);
 
     // html elements
     const
@@ -149,7 +149,7 @@ function spaceinvaders() {
             map(() => new PlayerShoot())),
         mouseMove = fromEvent<MouseEvent>(document, 'mousemove').pipe(
             filter(mouseOnCanvas),
-            map(({ clientX, clientY }) => new MouseMove({ x: clientX, y: clientY }))),
+            map(({ clientX, clientY }) => new MouseMove({ x: clientX - Constants.PLAYER_WIDTH / 2, y: clientY }))),
         gameClock = interval(10).pipe(map(elapsed => new Tick(elapsed))),
         enemyShootStream = interval(2000).pipe(map(() => new EnemyShoot()));
 
@@ -214,7 +214,7 @@ function spaceinvaders() {
      * @returns 
      */
     const randEnemyThatShoots = (s: State) => {
-        const randEnemy = rng.nextInt(enemiesThatShoot(s).length);
+        const randEnemy = s.pseudoRNG % enemiesThatShoot(s).length; 
         return enemiesThatShoot(s)[randEnemy];
     };
 
@@ -291,7 +291,12 @@ function spaceinvaders() {
             lowestInCol = (s: State, col: number) => enemiesInCol(s, col).reduce(lowerInCol),
             noEnemies = (s: State) => s.enemyTracker.enemies.length === 0;
 
-        return <State>{
+        return playerCollided ?
+            <State>{
+                ...s,
+                gameStatus: 1
+            } :
+            <State>{
                 ...s,
                 bullets: noEnemies(s) ? [] : cutBullets(s.bullets)(collidedBullets),
                 exit: noEnemies(s) ? s.exit.concat(s.bullets) : s.exit.concat(collidedBullets, collidedEnemies),
@@ -318,13 +323,14 @@ function spaceinvaders() {
         const
             offCanvasBullets = s.bullets.filter(b => !bulletOnCanvas(b)),
             onCanvasBullets = s.bullets.filter(bulletOnCanvas);
-        return handleCollisions({
-                ...s,
-                player: movePlayer(s.player),
-                bullets: onCanvasBullets.map(moveBullet),
-                enemyTracker: moveEnemies(s.enemyTracker, elapsed),
-                exit: offCanvasBullets
-            });
+        return handleCollisions(<State>{
+            ...s,
+            player: movePlayer(s.player),
+            bullets: onCanvasBullets.map(moveBullet),
+            enemyTracker: moveEnemies(s.enemyTracker, elapsed),
+            exit: offCanvasBullets,
+            pseudoRNG: s.pseudoRNG * (s.player.x + s.bullets.length) % 1111111 
+        });
     };
 
     /**
@@ -371,7 +377,8 @@ function spaceinvaders() {
             spacePress
         )
         .pipe(
-            scan(reduceState, initialState)
+            scan(reduceState, initialState),
+            filter(s => s.gameStatus != 1)
         )
         .subscribe(updateView);
 
@@ -383,7 +390,7 @@ function spaceinvaders() {
         document.getElementById('score')!.innerHTML = `score: ${String(s.score)}`;
         document.getElementById('level')!.innerHTML = `level: ${String(s.level)}`;
         // from Observable Asteroids
-        ship.setAttribute('transform', `translate(${s.player.x - Constants.PLAYER_WIDTH / 2},${s.player.y})`);
+        ship.setAttribute('transform', `translate(${s.player.x}, ${s.player.y})`);
         s.bullets.forEach(b => {
             const createBulletView = () => {
                 const v = document.createElementNS(canvas.namespaceURI, 'rect')!;
@@ -431,29 +438,6 @@ if (typeof window != 'undefined')
 
 
 // === utility ===
-
-// RNG class from Week 4 observableexamples.ts
-class RNG {
-
-    m = 0x80000000; // 2**31
-    a = 1103515245;
-    c = 12345;
-    state: number
-
-    constructor(seed: number) {
-        this.state = seed ? seed : Math.floor(Math.random() * (this.m - 1));
-    }
-
-    // modified so the bound is given as input
-    nextInt(b: number) {
-        this.state = (this.a * this.state + this.c) % b;
-        return this.state;
-    }
-
-    nextFloat() {
-        return this.nextInt(this.m) / (this.m - 1);
-    }
-}
 
 // from Observable Asteroids
 const
