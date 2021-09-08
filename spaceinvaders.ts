@@ -14,7 +14,8 @@ function spaceinvaders() {
         ENEMY_WIDTH: 30,
         ENEMY_HEIGHT: 30,
         ENEMY_SPACING: 40,
-        DOWN_STEP_TIME: 500,
+        DOWN_STEP_FREQ: 500,
+        DOWN_STEP_LEN: 20,
         ET_INITIAL_X: 5,
         ET_INITIAL_Y: 40
     } as const;
@@ -29,7 +30,7 @@ function spaceinvaders() {
     class ResetGame { constructor() { } }
 
     type Event = 'keydown' | 'keyup' | 'mousemove' | 'mousedown';
-    type Key = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp';
+    type Key = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'KeyX';
 
     type GameObject = Readonly<{
         id: string,
@@ -144,7 +145,7 @@ function spaceinvaders() {
         stopMoveLeft = keyObservable('keyup', 'ArrowLeft', () => new MoveLeft(false)),
         startMoveRight = keyObservable('keydown', 'ArrowRight', () => new MoveRight(true)),
         stopMoveRight = keyObservable('keyup', 'ArrowRight', () => new MoveRight(false)),
-        spacePress = keyObservable('keydown', 'ArrowUp', () => new PlayerShoot()),
+        keyShoot = keyObservable('keydown', 'KeyX', () => new PlayerShoot()),
         mouseClick = fromEvent<MouseEvent>(document, 'mousedown').pipe(
             filter(mouseOnCanvas),
             map(() => new PlayerShoot())),
@@ -196,9 +197,9 @@ function spaceinvaders() {
     const moveEnemies = (et: EnemyTracker, elapsed: number) => <EnemyTracker>{
         ...et,
         x: et.x > 90 ? 89 : et.x < 10 ? 11 : et.x + et.velX,
-        y: elapsed > Constants.DOWN_STEP_TIME
-            && elapsed % Constants.DOWN_STEP_TIME > 0
-            && elapsed % Constants.DOWN_STEP_TIME < 20
+        y: elapsed > Constants.DOWN_STEP_FREQ
+            && elapsed % Constants.DOWN_STEP_FREQ > 0
+            && elapsed % Constants.DOWN_STEP_FREQ < Constants.DOWN_STEP_LEN
             ? et.y + et.velY : et.y,
         velX: et.x > 90 || et.x < 10 ? (-1) * et.velX : et.velX,
         enemies: et.enemies.map(moveEnemy(et))
@@ -278,7 +279,7 @@ function spaceinvaders() {
                     console.log("Already removed: " + v!.id)
                 }
             });
-        document.getElementById('gameover')!.innerHTML = 'GAME OVER<br />click screen to reset';
+        document.getElementById('gameover')!.innerHTML = 'GAME OVER<br/>click screen to reset';
         return initialState; 
     }
 
@@ -401,7 +402,7 @@ function spaceinvaders() {
             mouseMove, mouseClick,
             startMoveLeft, stopMoveLeft,
             startMoveRight, stopMoveRight,
-            spacePress,
+            keyShoot,
             reset
         )
         .pipe(
