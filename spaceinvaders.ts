@@ -59,7 +59,7 @@ function spaceinvaders() {
     }>
 
     /**
-     * Represents an Enemy.
+     * Represents an Enemy. Column and row allow us to position enemies in a grid.
      */
     interface IEnemy extends GameObject {
         col: number,
@@ -105,7 +105,10 @@ function spaceinvaders() {
     type Tile = Readonly<ITile>
     type Shield = Readonly<IShield>
 
-    // The State keeps track of anything that updates during gameplay.
+    /**
+     * The State keeps track of anything that will change during gameplay. We keep purity throughout
+     * by creating an entirely new state whenever we want to update something.
+     */ 
     type State = Readonly<{
         player: Player,
         bullets: ReadonlyArray<Bullet>,
@@ -222,7 +225,14 @@ function spaceinvaders() {
         ship = document.getElementById('ship')!,
         canvasRect = canvas.getBoundingClientRect();
 
-    // from Observable Asteroids
+    /**
+     * Taken from Observable Asteroids - creates a new Observable
+     * with a given KeyEvent, KeyCode and function to return. 
+     * @param e a KeyEvent.
+     * @param k a KeyCode.
+     * @param result a function.
+     * @returns an Observable.
+     */
     const keyObservable = <T>(e: Event, k: Key, result: () => T) =>
         fromEvent<KeyboardEvent>(document, e)
             .pipe(
@@ -285,7 +295,7 @@ function spaceinvaders() {
     /**
      * Moves the player according to its current Velocity.
      * @param p the Player.
-     * @returns the updated Player.
+     * @returns a new Player.
      */
     const movePlayer = (p: Player) => <Player>{
         ...p,
@@ -295,7 +305,7 @@ function spaceinvaders() {
     /**
      * Moves a Bullet according to its current velocity.
      * @param b a Bullet.
-     * @returns the updated Bullet.
+     * @returns a new Bullet.
      */
     const moveBullet = (b: Bullet) => <Bullet>{
         ...b,
@@ -304,9 +314,11 @@ function spaceinvaders() {
 
     /**
      * Moves an Enemy according to the position of the EnemyTracker.
+     * This is curried so we can pass in the EnemyTracker and then pass this function
+     * into map to move all the enemies.
      * @param et an EnemyTracker.
      * @param e an Enemy belonging to the EnemyTracker. 
-     * @returns the updated Enemy.
+     * @returns a new Enemy.
      */
     const moveEnemy = (et: EnemyTracker) => (e: Enemy) => <Enemy>{
         ...e,
@@ -318,7 +330,7 @@ function spaceinvaders() {
      * Moves all Enemies belonging to the given EnemyTracker,
      * according to the position and velocity of the EnemyTracker.
      * @param et an EnemyTracker.
-     * @returns the updated EnemyTracker.
+     * @returns a new EnemyTracker.
      */
     const moveEnemies = (et: EnemyTracker, elapsed: number) => <EnemyTracker>{
         ...et,
@@ -428,7 +440,7 @@ function spaceinvaders() {
      * Handles all collisions.
      * It determines which objects have collided, and then what to do with those objects.
      * @param s the current State.
-     * @returns the updated State.
+     * @returns a new State.
      */
     const handleCollisions = (s: State) => {
 
@@ -548,10 +560,11 @@ function spaceinvaders() {
     }
 
     /**
-     * Updates the game state outside of user input - moves objects and handles collisions
+     * Updates the game state outside of user input - moves objects and handles collisions.
+     * Each tick, and call to handleCollisions, returns a completely new state to maintain purity.
      * @param s the current State.
      * @param elapsed the time the game has been running.
-     * @returns the updated State.
+     * @returns a new State.
      */
     const tick = (s: State, elapsed: number) => {
         const
@@ -563,7 +576,13 @@ function spaceinvaders() {
             bullets: onCanvasBullets.map(moveBullet),  // only move bullets currently on-screen
             enemyTracker: moveEnemies(s.enemyTracker, elapsed),
             exit: offCanvasBullets,  // add off-screen bullets to exit
-            pseudoRNG: s.pseudoRNG * (s.player.x + s.bullets.length) % 1111111  // dumb pseudo-random number generator
+
+            /**
+             * dumb pseudo-random number generator - still pure because it depends entirely
+             * on the attributes of the given State object, and nothing else. The randomness
+             * comes from it being extremely unlikely to be passed in the same State twice.
+             */
+            pseudoRNG: s.pseudoRNG * (s.player.x + s.bullets.length) % 1111111  
         });
     };
 
@@ -601,9 +620,9 @@ function spaceinvaders() {
         : tick(s, e.elapsed);
 
     /**
-     * Subscription call - it first merges all observable streams into one, then it updates the state
+     * Subscription call - it first merges all observable streams into one, then it creates a new state
      * by using reduceState with any Objects passed from the observable streams. Last, it renders
-     * the updated state to the screen using updateView.
+     * the new state to the screen using updateView.
      */
     const subscription =
         merge(
@@ -623,6 +642,7 @@ function spaceinvaders() {
 
     /**
      * Renders the current state to the svg canvas. Adapted from Observable Asteroids.
+     * This function is impure due to the setAttribute and appendChild calls that mutate the HTML elements.
      * @param s the current State object.
      */
     function updateView(s: State) {
