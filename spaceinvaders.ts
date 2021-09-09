@@ -21,7 +21,9 @@ function spaceinvaders() {
         DOWN_STEP_FREQ: 500,
         DOWN_STEP_LEN: 20,
         ET_INITIAL_X: 5,
-        ET_INITIAL_Y: 40
+        ET_INITIAL_Y: 40,
+        LEFT_WALL: 10,
+        RIGHT_WALL: 90
     } as const;
 
     class Tick { constructor(public readonly elapsed: number) { } }
@@ -92,18 +94,17 @@ function spaceinvaders() {
         tiles: ReadonlyArray<Tile>
     }
 
+    /**
+     * Readonly types of each interface declared above.
+     */
     type Player = Readonly<IPlayer>
-
     type Bullet = Readonly<GameObject>
-
     type Enemy = Readonly<IEnemy>
-
     type EnemyTracker = Readonly<IEnemyTracker>
-
     type Tile = Readonly<ITile>
-
     type Shield = Readonly<IShield>
 
+    // The State keeps track of anything that updates during gameplay.
     type State = Readonly<{
         player: Player,
         bullets: ReadonlyArray<Bullet>,
@@ -117,14 +118,26 @@ function spaceinvaders() {
         pseudoRNG: number
     }>
 
+    /**
+     * Generates [row, col] tuples for positioning the Enemies on the screen.
+     */
     const
         enemyCols = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
         enemyRows = [1, 2, 3, 4, 5],
-        enemyRowCols = enemyRows.flatMap(a => enemyCols.map(b => [a, b])),
+        enemyRowCols = enemyRows.flatMap(row => enemyCols.map(col => [row, col]))
+    
+    /**
+     * Generates [row, col] tuples for positioning Tiles to make up a Shield.
+     */
+    const
         tileCols = [1, 2, 3, 4, 5, 6, 7],
         tileRows = [1, 2, 3, 4, 5],
-        tileRowCols = tileRows.flatMap(a => tileCols.map(b => [a, b]));
+        tileRowCols = tileRows.flatMap(row => tileCols.map(col => [row, col]));
 
+    /**
+     * Initialises all Enemies and their positions on the canvas.
+     * @returns an Array of Enemies.
+     */
     const initEnemies = () => enemyRowCols.map(coords =>
         <Enemy>{
             id: `enemy${coords[0]}${coords[1]}`,
@@ -137,17 +150,27 @@ function spaceinvaders() {
             objectHeight: Constants.ENEMY_HEIGHT
         });
 
-    const initTiles = (x: number) => tileRowCols.map(coords =>
+    /**
+     * Generates all Tiles and their positions to form a single Shield.
+     * @param num which number shield this is - from 1 (leftmost) to 4 (rightmost)
+     * @returns an Array of Tiles.
+     */
+    const initTiles = (num: number) => tileRowCols.map(coords =>
         <Tile>{
-            id: `tile${coords[0]}${coords[1]}${x}`,
-            x: coords[1] * Constants.SHIELD_TILE_SIZE + x,
+            id: `tile${coords[0]}${coords[1]}${num}`,
+            x: coords[1] * Constants.SHIELD_TILE_SIZE + num,
             y: coords[0] * Constants.SHIELD_TILE_SIZE + 475,
             col: coords[1],
             row: coords[0],
             objectWidth: Constants.SHIELD_TILE_SIZE,
             objectHeight: Constants.SHIELD_TILE_SIZE
         });
-
+   
+    /**
+     * Creates a single Shield. 
+     * @param num which number shield this is - from 1 (leftmost) to 4 (rightmost)
+     * @returns a new Shield object.
+     */     
     const initShield = (num: number) => <Shield>{
         id: `shield${num}`,
         x: Constants.SHIELD_SPACING * num,
@@ -159,6 +182,9 @@ function spaceinvaders() {
         objectHeight: 0
     }
 
+    /**
+     * The initial State of the game.
+     */
     const initialState: State = {
         player: {
             id: 'ship',
@@ -218,28 +244,39 @@ function spaceinvaders() {
      * Observable streams
      */
     const
+        // User presses left arrow key - move the Player left
         startMoveLeft = keyObservable('keydown', 'ArrowLeft', () => new MoveLeft(true)),
-
+        
+        // User stops pressing left arrow key - stop moving Player left
         stopMoveLeft = keyObservable('keyup', 'ArrowLeft', () => new MoveLeft(false)),
 
+        // User presses right arrow key - move the Player right
         startMoveRight = keyObservable('keydown', 'ArrowRight', () => new MoveRight(true)),
 
+        // User stops pressing right arrow key - stop moving Player tight
         stopMoveRight = keyObservable('keyup', 'ArrowRight', () => new MoveRight(false)),
 
+        // Uses presses the 'x' key - Player shoots
         keyShoot = keyObservable('keydown', 'KeyX', () => new PlayerShoot()),
 
+        // User clicks on the canvas - Player shoots
         mouseClick = fromEvent<MouseEvent>(document, 'mousedown').pipe(
             filter(mouseOnCanvas),
             map(() => new PlayerShoot())),
 
+        // User moves mouse on the canvas - Move the Player to the mouse's x coords
         mouseMove = fromEvent<MouseEvent>(document, 'mousemove').pipe(
             filter(mouseOnCanvas),
             map(({ clientX, clientY }) => new MouseMove({ x: clientX - Constants.PLAYER_WIDTH / 2, y: clientY }))),
 
+        // Update the game state every 10ms
         gameClock = interval(10).pipe(map(elapsed => new Tick(elapsed))),
 
+        // Enemies shoot every 1.5s
         enemyShootStream = interval(1500).pipe(map(() => new EnemyShoot())),
 
+        // Reset the game when clicking
+        // Whether this does anything depends on the gameStatus attribute of the state - handled in reduceState
         reset = fromEvent<MouseEvent>(document, 'mousedown').pipe(
             filter(mouseOnCanvas),
             map(() => new ResetGame()));
@@ -282,12 +319,21 @@ function spaceinvaders() {
      */
     const moveEnemies = (et: EnemyTracker, elapsed: number) => <EnemyTracker>{
         ...et,
-        x: et.x > 90 ? 89 : et.x < 10 ? 11 : et.x + et.velX,
+        /** 
+         * When the Enemies hit a wall, we have to move them inwards so they
+         * don't get stuck in an infinite loop.
+         */ 
+        x: et.x > Constants.RIGHT_WALL ? Constants.RIGHT_WALL 
+            : et.x < Constants.LEFT_WALL ? Constants.LEFT_WALL 
+            : et.x + et.velX,
+        // Use elapsed time to create a discrete yet smooth movement downwards
         y: elapsed > Constants.DOWN_STEP_FREQ
             && elapsed % Constants.DOWN_STEP_FREQ > 0
             && elapsed % Constants.DOWN_STEP_FREQ < Constants.DOWN_STEP_LEN
             ? et.y + et.velY : et.y,
-        velX: et.x > 90 || et.x < 10 ? (-1) * et.velX : et.velX,
+        // Multiply velocity by -1 to move in opposite direction
+        velX: et.x > Constants.RIGHT_WALL || et.x < Constants.LEFT_WALL ? 
+            (-1) * et.velX : et.velX,
         enemies: et.enemies.map(moveEnemy(et))
     };
 
@@ -374,9 +420,10 @@ function spaceinvaders() {
     }
 
     /**
-     * 
-     * @param s 
-     * @returns 
+     * Handles all collisions.
+     * It determines which objects have collided, and then what to do with those objects.
+     * @param s the current State.
+     * @returns the updated State.
      */
     const handleCollisions = (s: State) => {
 
@@ -447,20 +494,23 @@ function spaceinvaders() {
 
         if (playerCollided) clearObjects(s);
 
-        return playerCollided ?  // game over
+        return playerCollided ?  
+            // game over - update the gameStatus
             <State>{
                 ...s,
                 gameStatus: 1
-            } : noEnemies(s) ?  // all enemies defeated - go up a level and create new enemies
+            } : noEnemies(s) ?  
+            // else if all enemies defeated - go up a level and create new enemies
             <State> {
                 ...s,
-                bullets: [],
+                bullets: [],  // remove all Bullets from state
                 shields: s.shields.map(sh => <Shield>{
                     ...sh,
                     tiles: cutTiles(sh.tiles)(collidedTiles)
                 }),
-                exit: s.exit.concat(s.bullets),
+                exit: s.exit.concat(s.bullets),  // add all Bullets to exit
                 enemyTracker: {
+                    // reset the EnemyTracker and all Enemies
                     ...s.enemyTracker,
                     x: Constants.ET_INITIAL_X,
                     y: Constants.ET_INITIAL_Y,
@@ -468,19 +518,23 @@ function spaceinvaders() {
                 },
                 score: s.score + collidedEnemies.length * 10,
                 level: s.level + 1
-            } :  // game continuing - remove collided objects and add to exit array
+            } :  
+            // otherwise, game is continuing - remove collided objects and add to exit array
             <State>{
                 ...s,
-                bullets: cutBullets(s.bullets)(collidedBullets),
+                bullets: cutBullets(s.bullets)(collidedBullets),  // remove collided Bullets from state
                 shields: s.shields.map(sh => <Shield>{
                     ...sh,
-                    tiles: cutTiles(sh.tiles)(collidedTiles)
+                    tiles: cutTiles(sh.tiles)(collidedTiles)  // remove collided Tiles from state
                 }),
-                exit: s.exit.concat(collidedBullets, collidedEnemies, collidedTiles),
+                // add all (non-player) collided objects to the exit array
+                exit: s.exit.concat(collidedBullets, collidedEnemies, collidedTiles), 
                 enemyTracker: {
                     ...s.enemyTracker,
                     x: s.enemyTracker.x,
                     y: s.enemyTracker.y,
+                    // remove collided Enemies from state, 
+                    // and update the lowest-positioned Enemies to allow them to shoot
                     enemies: cutEnemies(s.enemyTracker.enemies.map(e =>
                             e.row === lowestInCol(s, e.col).row ? <Enemy>{...e, canShoot: true } : e))(collidedEnemies),
                 },
@@ -489,10 +543,10 @@ function spaceinvaders() {
     }
 
     /**
-     * 
-     * @param s 
-     * @param elapsed 
-     * @returns 
+     * Updates the game state outside of user input - moves objects and handles collisions
+     * @param s the current State.
+     * @param elapsed the time the game has been running.
+     * @returns the updated State.
      */
     const tick = (s: State, elapsed: number) => {
         const
@@ -538,7 +592,7 @@ function spaceinvaders() {
             bullets: enemiesThatShoot(s).length > 0 ? s.bullets.concat(newEnemyBullet(s)) : s.bullets,
             objCount: s.objCount + 1
         } 
-        : e instanceof ResetGame ? s.gameStatus === 1 ? initialState : s
+        : e instanceof ResetGame ? s.gameStatus === 1 ? initialState : s  // only reset game if gameStatus is 1
         : tick(s, e.elapsed);
 
     /**
