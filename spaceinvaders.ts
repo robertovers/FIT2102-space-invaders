@@ -24,18 +24,27 @@ function spaceinvaders() {
         ET_INITIAL_Y: 40
     } as const;
 
-    // classes
     class Tick { constructor(public readonly elapsed: number) { } }
+    
     class MoveLeft { constructor(public readonly on: boolean) { } }
+    
     class MoveRight { constructor(public readonly on: boolean) { } }
+    
     class MouseMove { constructor(public readonly mousePos: { x: number, y: number }) { } }
+    
     class PlayerShoot { constructor() { } }
+    
     class EnemyShoot { constructor() { } }
+    
     class ResetGame { constructor() { } }
 
     type Event = 'keydown' | 'keyup' | 'mousemove' | 'mousedown';
     type Key = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'KeyX';
 
+    /**
+     * The most basic type of object used for the game - all others extend this. 
+     * It has an id, coordinates, dimensions, and can move.
+     */
     type GameObject = Readonly<{
         id: string,
         x: number,
@@ -46,30 +55,41 @@ function spaceinvaders() {
         objectHeight: number,
     }>
 
+    /**
+     * Represents an Enemy.
+     */
     interface IEnemy extends GameObject {
         col: number,
         row: number,
         canShoot: boolean
     }
 
+    /**
+     * Represent the Player.
+     */
     interface IPlayer extends GameObject {
     }
    
+    /**
+     * Used to store all Enemies in the game.
+     */
     interface IEnemyTracker extends GameObject {
         enemies: ReadonlyArray<Enemy>
     }
 
+    /**
+     * A small square that makes up the Shields.
+     */
     interface ITile extends GameObject {
         col: number,
         row: number
     }
 
+    /**
+     * A Shield, made from a number of Tiles.
+     */
     interface IShield extends GameObject {
         tiles: ReadonlyArray<Tile>
-    }
-
-    interface IShieldTracker extends GameObject {
-        shields: ReadonlyArray<Shield>
     }
 
     type Player = Readonly<IPlayer>
@@ -183,27 +203,43 @@ function spaceinvaders() {
                 filter(({ repeat }) => !repeat),
                 map(result));
 
+    /**
+     * Determines if the user's mouse is over the svg canvas.
+     * @param param0 a MouseEvent
+     * @returns True if the mouse is on the canvas, False otherwise
+     */
     const mouseOnCanvas = ({ clientX, clientY }: MouseEvent) =>
         clientX > canvasRect.left &&
         clientX < canvasRect.right &&
         clientY > canvasRect.top &&
         clientY < canvasRect.bottom;
 
-    // observable streams
+    /**
+     * Observable streams
+     */
     const
         startMoveLeft = keyObservable('keydown', 'ArrowLeft', () => new MoveLeft(true)),
+
         stopMoveLeft = keyObservable('keyup', 'ArrowLeft', () => new MoveLeft(false)),
+
         startMoveRight = keyObservable('keydown', 'ArrowRight', () => new MoveRight(true)),
+
         stopMoveRight = keyObservable('keyup', 'ArrowRight', () => new MoveRight(false)),
+
         keyShoot = keyObservable('keydown', 'KeyX', () => new PlayerShoot()),
+
         mouseClick = fromEvent<MouseEvent>(document, 'mousedown').pipe(
             filter(mouseOnCanvas),
             map(() => new PlayerShoot())),
+
         mouseMove = fromEvent<MouseEvent>(document, 'mousemove').pipe(
             filter(mouseOnCanvas),
             map(({ clientX, clientY }) => new MouseMove({ x: clientX - Constants.PLAYER_WIDTH / 2, y: clientY }))),
+
         gameClock = interval(10).pipe(map(elapsed => new Tick(elapsed))),
-        enemyShootStream = interval(2000).pipe(map(() => new EnemyShoot())),
+
+        enemyShootStream = interval(1500).pipe(map(() => new EnemyShoot())),
+
         reset = fromEvent<MouseEvent>(document, 'mousedown').pipe(
             filter(mouseOnCanvas),
             map(() => new ResetGame()));
@@ -223,7 +259,7 @@ function spaceinvaders() {
      * @param b 
      * @returns 
      */
-    const moveBullet = (b: Bullet) => <GameObject>{
+    const moveBullet = (b: Bullet) => <Bullet>{
         ...b,
         y: b.y + b.velY
     };
@@ -299,7 +335,7 @@ function spaceinvaders() {
      const newPlayerBullet = (s: State) => <GameObject>{
         id: `bullet${s.objCount}`,
         x: s.player.x + Constants.PLAYER_WIDTH / 2 - 1,
-        y: s.player.y - 15,
+        y: s.player.y - 1,
         velX: 0,
         velY: -5,
         objectWidth: 2,
@@ -355,52 +391,100 @@ function spaceinvaders() {
             i.y + i.objectHeight > j.y &&
             i.y < j.y + j.objectHeight;
 
+        /**
+         * These are a number of consts and anonymous functions for updating collisions.
+         * It is based off the general structure of the Observable Asteroids example.
+         */
         const
-            // from Observable Asteroids
-            allBulletsAndEnemies = s.bullets.flatMap(b => s.enemyTracker.enemies.map(e => <[Bullet, Enemy]>[b, e])),
             allBulletsAndPlayer = s.bullets.map(b => <[Bullet, Player]>[b, s.player]),
-            allBulletsAndTiles = s.bullets.flatMap(b => s.shields.flatMap(s => s.tiles.map(t => <[Bullet, Tile]>[b, t]))),
+            
+            allBulletsAndEnemies = s.bullets.flatMap(b => 
+                s.enemyTracker.enemies.map(e => <[Bullet, Enemy]>[b, e])), 
+            
+            allBulletsAndTiles = s.bullets.flatMap(b => 
+                s.shields.flatMap(s => s.tiles.map(t => <[Bullet, Tile]>[b, t]))),
+            
+            allEnemiesAndTiles = s.enemyTracker.enemies.flatMap(e => 
+                s.shields.flatMap(s => s.tiles.map(t => <[Bullet, Tile]>[e, t]))),
+            
             collidedBulletsEnemies = allBulletsAndEnemies.filter(objectCollision),
+            
             collidedBulletsTiles = allBulletsAndTiles.filter(objectCollision),
+            
             playerCollided = allBulletsAndPlayer.filter(objectCollision).length > 0 
-                || s.enemyTracker.enemies.filter(e => e.y > 530).length > 0,
+                || s.enemyTracker.enemies.filter(e => e.y > 520).length > 0,
+
+            collidedEnemiesTiles = allEnemiesAndTiles.filter(objectCollision),
+            
             collidedEnemies = collidedBulletsEnemies.map(([_, enemy]) => enemy),
-            collidedTiles = collidedBulletsTiles.map(([_, tile]) => tile),
+            
+            collidedTiles = collidedBulletsTiles.map(([_, tile]) => tile)
+                .concat(collidedEnemiesTiles.map(([_, tile]) => tile)),
+            
             collidedBullets = collidedBulletsEnemies.map(([bullet, _]) => bullet)
                 .concat(collidedBulletsTiles.map(([bullet, _]) => bullet)),
+           
+            // cut an array of Enemies from another
             cutEnemies = except((a: Enemy) => (b: Enemy) => a.id === b.id),
+           
+            // cut an array of Bullets from another
             cutBullets = except((a: Bullet) => (b: Bullet) => a.id === b.id),
+
+            // cut an array of Tiles from another
             cutTiles = except((a: Tile) => (b: Tile) => a.id === b.id),
+
+            // retrieve all Enemies in a given column
             enemiesInCol = (s: State, col: number) => s.enemyTracker.enemies.filter(e => e.col === col),
+
+            // find the lower-positioned Enemy from two given Enemies
             lowerInCol = (e: Enemy, f: Enemy) => e.row > f.row ? e : f,
+
+            // find the lowest-positioned enemy in a given column
             lowestInCol = (s: State, col: number) => enemiesInCol(s, col).reduce(lowerInCol),
+
+            // check if there are no enemies left in the current state
             noEnemies = (s: State) => s.enemyTracker.enemies.length === 0;
 
         if (playerCollided) clearObjects(s);
 
-        return playerCollided ?
+        return playerCollided ?  // game over
             <State>{
                 ...s,
                 gameStatus: 1
-            } :
-            <State>{
+            } : noEnemies(s) ?  // all enemies defeated - go up a level and create new enemies
+            <State> {
                 ...s,
-                bullets: noEnemies(s) ? [] : cutBullets(s.bullets)(collidedBullets),
+                bullets: [],
                 shields: s.shields.map(sh => <Shield>{
                     ...sh,
                     tiles: cutTiles(sh.tiles)(collidedTiles)
                 }),
-                exit: noEnemies(s) ? s.exit.concat(s.bullets) : s.exit.concat(collidedBullets, collidedEnemies, collidedTiles),
+                exit: s.exit.concat(s.bullets),
                 enemyTracker: {
                     ...s.enemyTracker,
-                    x: noEnemies(s) ? Constants.ET_INITIAL_X : s.enemyTracker.x,
-                    y: noEnemies(s) ? Constants.ET_INITIAL_Y : s.enemyTracker.y,
-                    enemies: noEnemies(s) ? initEnemies()
-                        : cutEnemies(s.enemyTracker.enemies.map(e =>
+                    x: Constants.ET_INITIAL_X,
+                    y: Constants.ET_INITIAL_Y,
+                    enemies: initEnemies(),
+                },
+                score: s.score + collidedEnemies.length * 10,
+                level: s.level + 1
+            } :  // game continuing - remove collided objects and add to exit array
+            <State>{
+                ...s,
+                bullets: cutBullets(s.bullets)(collidedBullets),
+                shields: s.shields.map(sh => <Shield>{
+                    ...sh,
+                    tiles: cutTiles(sh.tiles)(collidedTiles)
+                }),
+                exit: s.exit.concat(collidedBullets, collidedEnemies, collidedTiles),
+                enemyTracker: {
+                    ...s.enemyTracker,
+                    x: s.enemyTracker.x,
+                    y: s.enemyTracker.y,
+                    enemies: cutEnemies(s.enemyTracker.enemies.map(e =>
                             e.row === lowestInCol(s, e.col).row ? <Enemy>{...e, canShoot: true } : e))(collidedEnemies),
                 },
                 score: s.score + collidedEnemies.length * 10,
-                level: noEnemies(s) ? s.level + 1 : s.level
             };
     }
 
@@ -417,15 +501,16 @@ function spaceinvaders() {
         return handleCollisions(<State>{
             ...s,
             player: movePlayer(s.player),
-            bullets: onCanvasBullets.map(moveBullet),
+            bullets: onCanvasBullets.map(moveBullet),  // only move bullets currently on-screen
             enemyTracker: moveEnemies(s.enemyTracker, elapsed),
-            exit: offCanvasBullets,
+            exit: offCanvasBullets,  // add off-screen bullets to exit
             pseudoRNG: s.pseudoRNG * (s.player.x + s.bullets.length) % 1111111  // dumb pseudo-random number generator
         });
     };
 
     /**
-     * 
+     * Takes in a state, and an instance of the classes returned by the Observable streams.
+     * It then updates the state based on what class is passed through.
      * @param s 
      * @param e 
      * @returns 
@@ -457,7 +542,9 @@ function spaceinvaders() {
         : tick(s, e.elapsed);
 
     /**
-     * 
+     * Subscription call - it first merges all observable streams into one, then it updates the state
+     * by using reduceState with any Objects passed from the observable streams. Last, it renders
+     * the updated state to the screen using updateView.
      */
     const subscription =
         merge(
@@ -471,62 +558,111 @@ function spaceinvaders() {
         )
         .pipe(
             scan(reduceState, initialState),
-            filter(s => s.gameStatus != 1)
+            filter(s => s.gameStatus != 1)  // only update view whilst game is status 0 (playing)
         )
         .subscribe(updateView);
 
     /**
-     * 
-     * @param s 
+     * Renders the current state to the svg canvas.
+     * @param s the current State object.
      */
     function updateView(s: State) {
         document.getElementById('gameover')!.innerHTML = '';
         document.getElementById('score')!.innerHTML = `SCORE: ${String(s.score)}`;
         document.getElementById('level')!.innerHTML = `LEVEL: ${String(s.level)}`;
-        // from Observable Asteroids
+
+        // move the ship based on Player object's x and y.
         ship.setAttribute('transform', `translate(${s.player.x}, ${s.player.y})`);
+
+        /**
+         * Sets an Element's basic attributes to those of a given GameObject.
+         * @param v an Element object.
+         * @param g a GameObject.
+         * @returns an Element.
+         */
+        const setObjAttributes = (v: Element, g: GameObject) => {
+            v.setAttribute('id', g.id);
+            v.setAttribute('width', String(g.objectWidth));
+            v.setAttribute('height', String(g.objectHeight));
+            return v;
+        }
+
+        /**
+         * Sets an Element's positional attributes to those of a given GameObject.
+         * @param v an Element object.
+         * @param g a GameObject.
+         * @returns an Element.
+         */
+        const setPosAttributes = (v: Element, g: GameObject) => {
+            v.setAttribute('x', String(g.x));
+            v.setAttribute('y', String(g.y));
+            return v;
+        }
+
+        /**
+         * Create a new Element for a given Bullet object to be rendered to the screen.
+         * @returns an Element.
+         */
+        const createBulletView = (b: Bullet) => {
+            const v = setObjAttributes(document.createElementNS(canvas.namespaceURI, 'rect')!, b); 
+            v.setAttribute('fill', 'white');
+            return v;
+        }
+
+        /**
+         * Create a new Element for a given Enemy object to be rendered to the screen. 
+         * @returns en Element.
+         */
+        const createEnemyView = (e: Enemy) => {
+            const v = setObjAttributes(document.createElementNS(canvas.namespaceURI, 'image')!, e);
+            v.setAttribute('href', 'assets/alien.png');
+            return v;
+        }
+
+        /**
+         * Create a new Element for a given Tile object to be rendered to the screen.
+         * @returns an Element.
+         */
+        const createTileView = (t: Tile) => {
+            const v = setObjAttributes(document.createElementNS(canvas.namespaceURI, 'rect')!, t);
+            v.setAttribute('fill', 'pink');
+            return v;
+        }
+
+        /**
+         * For each Bullet:
+         * - If we've already rendered it to the canvas, just update it's position
+         * - If we havene't rendered it yet, create a new Element for it and then add it
+         */
         s.bullets.forEach(b => {
-            const createBulletView = () => {
-                const v = document.createElementNS(canvas.namespaceURI, 'rect')!;
-                v.setAttribute('id', b.id);
-                v.setAttribute('width', String(b.objectWidth));
-                v.setAttribute('height', String(b.objectHeight));
-                v.setAttribute('fill', 'white');
-                canvas.appendChild(v);
-                return v;
-            }
-            const v = document.getElementById(b.id) || createBulletView();
-            v.setAttribute('x', String(b.x));
-            v.setAttribute('y', String(b.y));
+            const v = document.getElementById(b.id) || createBulletView(b);
+            setPosAttributes(v, b);
+            canvas.appendChild(v);
         });
+
+        /**
+         * For each Enemy:
+         * - If we've already rendered it to the canvas, just update it's position
+         * - If we havene't rendered it yet, create a new Element for it and then add it
+         */
         s.enemyTracker.enemies.forEach(e => {
-            const createEnemyView = () => {
-                const v = document.createElementNS(canvas.namespaceURI, 'image')!;
-                v.setAttribute('id', e!.id);
-                v.setAttribute('width', String(e.objectWidth));
-                v.setAttribute('height', String(e.objectHeight));
-                v.setAttribute('href', 'assets/alien.png');
-                canvas.appendChild(v);
-                return v;
-            }
-            const v = document.getElementById(e!.id) || createEnemyView();
-            v.setAttribute('x', String(e!.x));
-            v.setAttribute('y', String(e!.y));
+            const v = document.getElementById(e!.id) || createEnemyView(e);
+            setPosAttributes(v, e);
+            canvas.appendChild(v);
         });
+
+        /**
+         * For each Tile:
+         * - If we've already rendered it to the canvas, just update it's position
+         * - If we havene't rendered it yet, create a new Element for it and then add it
+         */
         s.shields.forEach(sh => sh.tiles.forEach(t => {
-            const createTileView = () => {
-                const v = document.createElementNS(canvas.namespaceURI, 'rect')!;
-                v.setAttribute('id', t!.id);
-                v.setAttribute('width', String(t.objectWidth));
-                v.setAttribute('height', String(t.objectHeight));
-                v.setAttribute('fill', 'pink');
-                canvas.appendChild(v);
-                return v;
-            }
-            const v = document.getElementById(t!.id) || createTileView();
-            v.setAttribute('x', String(t!.x));
-            v.setAttribute('y', String(t!.y));
+            const v = document.getElementById(t!.id) || createTileView(t);
+            setPosAttributes(v, t);
+            canvas.appendChild(v);
         }));
+
+        // Remove anything in the exit array
         s.exit.map(o => document.getElementById(o.id))
             .filter(o => o !== null && o !== undefined)
             .forEach(v => {
