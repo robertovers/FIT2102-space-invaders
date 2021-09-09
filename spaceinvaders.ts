@@ -41,6 +41,7 @@ function spaceinvaders() {
     class ResetGame { constructor() { } }
 
     type Event = 'keydown' | 'keyup' | 'mousemove' | 'mousedown';
+
     type Key = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'KeyX';
 
     /**
@@ -282,9 +283,9 @@ function spaceinvaders() {
             map(() => new ResetGame()));
 
     /**
-     * 
-     * @param p 
-     * @returns 
+     * Moves the player according to its current Velocity.
+     * @param p the Player.
+     * @returns the updated Player.
      */
     const movePlayer = (p: Player) => <Player>{
         ...p,
@@ -292,9 +293,9 @@ function spaceinvaders() {
     };
 
     /**
-     * 
-     * @param b 
-     * @returns 
+     * Moves a Bullet according to its current velocity.
+     * @param b a Bullet.
+     * @returns the updated Bullet.
      */
     const moveBullet = (b: Bullet) => <Bullet>{
         ...b,
@@ -302,9 +303,10 @@ function spaceinvaders() {
     };
 
     /**
-     * 
-     * @param et 
-     * @returns 
+     * Moves an Enemy according to the position of the EnemyTracker.
+     * @param et an EnemyTracker.
+     * @param e an Enemy belonging to the EnemyTracker. 
+     * @returns the updated Enemy.
      */
     const moveEnemy = (et: EnemyTracker) => (e: Enemy) => <Enemy>{
         ...e,
@@ -313,15 +315,16 @@ function spaceinvaders() {
     };
 
     /**
-     * 
-     * @param et 
-     * @returns 
+     * Moves all Enemies belonging to the given EnemyTracker,
+     * according to the position and velocity of the EnemyTracker.
+     * @param et an EnemyTracker.
+     * @returns the updated EnemyTracker.
      */
     const moveEnemies = (et: EnemyTracker, elapsed: number) => <EnemyTracker>{
         ...et,
         /** 
          * When the Enemies hit a wall, we have to move them inwards so they
-         * don't get stuck in an infinite loop.
+         * don't get stuck in an infinite loop
          */ 
         x: et.x > Constants.RIGHT_WALL ? Constants.RIGHT_WALL 
             : et.x < Constants.LEFT_WALL ? Constants.LEFT_WALL 
@@ -334,21 +337,22 @@ function spaceinvaders() {
         // Multiply velocity by -1 to move in opposite direction
         velX: et.x > Constants.RIGHT_WALL || et.x < Constants.LEFT_WALL ? 
             (-1) * et.velX : et.velX,
+        // Move all enemies by mapping over each with the moveEnemy function
         enemies: et.enemies.map(moveEnemy(et))
     };
 
     /**
-     * 
-     * @param s 
-     * @returns 
+     * Returns an Array of Enemies that are allowed to shoot (no other Enemies lower than them).
+     * @param s the current State.
+     * @returns an Array of Enemies.
      */
     const enemiesThatShoot = (s: State) => 
         s.enemyTracker.enemies.filter(e => e.canShoot === true);
 
     /**
-     * 
-     * @param s 
-     * @returns 
+     * Returns a random enemy that can shoot given the current state.
+     * @param s the current State.
+     * @returns an Enemy.
      */
     const randEnemyThatShoots = (s: State) => {
         const randEnemy = s.pseudoRNG % enemiesThatShoot(s).length; 
@@ -356,9 +360,9 @@ function spaceinvaders() {
     };
 
     /**
-     * 
-     * @param s 
-     * @returns 
+     * Creates a Bullet with downwards velocity at the position of a random Enemy. 
+     * @param s the current State.
+     * @returns a new Bullet.
      */
     const newEnemyBullet = (s: State) => {
         const randEnemy = randEnemyThatShoots(s);
@@ -374,9 +378,9 @@ function spaceinvaders() {
     };
 
     /**
-     * 
-     * @param s 
-     * @returns 
+     * Creates a Bullet with upwards velocity at the Player's position.
+     * @param s the current State.
+     * @returns a new Bullet.
      */
      const newPlayerBullet = (s: State) => <GameObject>{
         id: `bullet${s.objCount}`,
@@ -389,9 +393,9 @@ function spaceinvaders() {
     };
 
     /**
-     * 
-     * @param b 
-     * @returns 
+     * Determines if a bullet's position is within the svg canvas.
+     * @param b a Bullet.
+     * @returns True if the bullet is on the canvas, False otherwise.
      */
     const bulletOnCanvas = (b: Bullet) =>
         b.x <= Constants.GAME_WIDTH &&
@@ -400,9 +404,10 @@ function spaceinvaders() {
         b.y + 20 >= 0;
 
     /**
-     * Adapted from observalble asteroids
-     * @param s 
-     * @returns 
+     * Adapted from Observalble Asteroids - removes Bullets and Enemies from the canvas
+     * and displays 'game over' to the screen.
+     * @param s the current State.
+     * @returns the initial State.
      */
     const clearObjects = (s: State) => {
         s.exit.concat(s.bullets, s.enemyTracker.enemies)
@@ -617,7 +622,7 @@ function spaceinvaders() {
         .subscribe(updateView);
 
     /**
-     * Renders the current state to the svg canvas.
+     * Renders the current state to the svg canvas. Adapted from Observable Asteroids.
      * @param s the current State object.
      */
     function updateView(s: State) {
@@ -685,7 +690,7 @@ function spaceinvaders() {
 
         /**
          * For each Bullet:
-         * - If we've already rendered it to the canvas, just update it's position
+         * - If we've already rendered it to the canvas, just update its position
          * - If we havene't rendered it yet, create a new Element for it and then add it
          */
         s.bullets.forEach(b => {
@@ -696,7 +701,7 @@ function spaceinvaders() {
 
         /**
          * For each Enemy:
-         * - If we've already rendered it to the canvas, just update it's position
+         * - If we've already rendered it to the canvas, just update its position
          * - If we havene't rendered it yet, create a new Element for it and then add it
          */
         s.enemyTracker.enemies.forEach(e => {
@@ -707,7 +712,7 @@ function spaceinvaders() {
 
         /**
          * For each Tile:
-         * - If we've already rendered it to the canvas, just update it's position
+         * - If we've already rendered it to the canvas, just update its position
          * - If we havene't rendered it yet, create a new Element for it and then add it
          */
         s.shields.forEach(sh => sh.tiles.forEach(t => {
@@ -716,7 +721,7 @@ function spaceinvaders() {
             canvas.appendChild(v);
         }));
 
-        // Remove anything in the exit array
+        // Remove anything in the exit array - from Observable Asteroids
         s.exit.map(o => document.getElementById(o.id))
             .filter(o => o !== null && o !== undefined)
             .forEach(v => {
